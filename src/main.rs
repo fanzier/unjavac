@@ -25,17 +25,17 @@ fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let fields = parse_fields(input)?;
     let methods = parse_methods(input)?;
     Ok(ClassFile {
-        magic: magic,
-        minor_version: minor_version,
-        major_version: major_version,
-        constant_pool: constant_pool,
-        access_flags: access_flags,
-        this_class: this_class,
-        super_class: super_class,
-        interfaces: interfaces,
-        fields: fields,
-        methods: methods,
-    })
+           magic: magic,
+           minor_version: minor_version,
+           major_version: major_version,
+           constant_pool: constant_pool,
+           access_flags: access_flags,
+           this_class: this_class,
+           super_class: super_class,
+           interfaces: interfaces,
+           fields: fields,
+           methods: methods,
+       })
 }
 
 fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> {
@@ -53,6 +53,14 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
             }
             3 => ConstantPoolInfo::Integer(input.read_u32::<BigEndian>()?),
             7 => ConstantPoolInfo::Class { name_index: input.read_u16::<BigEndian>()? },
+            9 => {
+                let class_index = input.read_u16::<BigEndian>()?;
+                let name_and_type_index = input.read_u16::<BigEndian>()?;
+                ConstantPoolInfo::FieldRef {
+                    class_index: class_index,
+                    name_and_type_index: name_and_type_index,
+                }
+            }
             10 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_and_type_index = input.read_u16::<BigEndian>()?;
@@ -95,6 +103,10 @@ enum ConstantPoolInfo {
     Utf8(String),
     Integer(u32),
     Class { name_index: u16 },
+    FieldRef {
+        class_index: u16,
+        name_and_type_index: u16,
+    },
     MethodRef {
         class_index: u16,
         name_and_type_index: u16,

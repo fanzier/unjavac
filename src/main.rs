@@ -21,12 +21,12 @@ fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let super_class = input.read_u16::<BigEndian>()?;
     Ok(ClassFile {
         magic: magic,
-        minor_version : minor_version,
-        major_version : major_version,
-        constant_pool : constant_pool,
-        access_flags : access_flags,
-        this_class : this_class,
-        super_class : super_class
+        minor_version: minor_version,
+        major_version: major_version,
+        constant_pool: constant_pool,
+        access_flags: access_flags,
+        this_class: this_class,
+        super_class: super_class,
     })
 }
 
@@ -42,17 +42,17 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
                 input.read_exact(&mut bytes)?;
                 let utf8 = String::from_utf8(bytes).unwrap();
                 ConstantPoolInfo::Utf8(utf8)
-            },
+            }
             3 => ConstantPoolInfo::Integer(input.read_u32::<BigEndian>()?),
-            7 => ConstantPoolInfo::Class{ name_index: input.read_u16::<BigEndian>()? },
+            7 => ConstantPoolInfo::Class { name_index: input.read_u16::<BigEndian>()? },
             10 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_and_type_index = input.read_u16::<BigEndian>()?;
                 ConstantPoolInfo::MethodRef {
                     class_index: class_index,
-                    name_and_type_index: name_and_type_index
+                    name_and_type_index: name_and_type_index,
                 }
-            },
+            }
             12 => {
                 let name_index = input.read_u16::<BigEndian>()?;
                 let descriptor_index = input.read_u16::<BigEndian>()?;
@@ -60,7 +60,7 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
                     name_index: name_index,
                     descriptor_index: descriptor_index,
                 }
-            },
+            }
             _ => panic!("Unimplemented constant pool info tag: {}", tag),
         };
         constant_pool.push(constant_pool_info);
@@ -70,26 +70,20 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
 
 #[derive(Debug)]
 struct ClassFile {
-    magic : u32,
-    minor_version : u16,
-    major_version : u16,
-    constant_pool : Vec<ConstantPoolInfo>,
-    access_flags : u16,
-    this_class : u16,
-    super_class : u16, /*
-    interfaces : Vec<interface_info>,
-    fields : Vec<fields_info>,
-    methods : Vec<method_info>,
-    attributes : Vec<attribute_info>, */
+    magic: u32,
+    minor_version: u16,
+    major_version: u16,
+    constant_pool: Vec<ConstantPoolInfo>,
+    access_flags: u16,
+    this_class: u16,
+    super_class: u16,
 }
 
 #[derive(Debug)]
 enum ConstantPoolInfo {
     Utf8(String),
     Integer(u32),
-    Class {
-        name_index: u16,
-    },
+    Class { name_index: u16 },
     MethodRef {
         class_index: u16,
         name_and_type_index: u16,

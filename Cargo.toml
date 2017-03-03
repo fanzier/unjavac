@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["Fabian Zaiser <fabian.zaiser@gmail.com>"]
 
 [dependencies]
-byteorder = "1.0.0"
+byteorder = ">= 1.0.0"
+bitflags = ">= 0.8.0"

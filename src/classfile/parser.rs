@@ -1,19 +1,9 @@
-#[macro_use]
-extern crate bitflags;
-extern crate byteorder;
-
 use std::io::prelude::*;
 use std::io::Result;
 use byteorder::{BigEndian, ReadBytesExt};
+use super::constants::*;
 
-fn main() {
-    use std::fs::File;
-    let mut f = File::open("java-bytecode-test/Main.class").unwrap();
-    let class_file = parse_class_file(&mut f).unwrap();
-    println!("{:?}", class_file);
-}
-
-fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
+pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let magic = input.read_u32::<BigEndian>()?;
     let minor_version = input.read_u16::<BigEndian>()?;
     let major_version = input.read_u16::<BigEndian>()?;
@@ -25,17 +15,17 @@ fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let fields = parse_fields(input)?;
     let methods = parse_methods(input)?;
     Ok(ClassFile {
-           magic: magic,
-           minor_version: minor_version,
-           major_version: major_version,
-           constant_pool: constant_pool,
-           access_flags: access_flags,
-           this_class: this_class,
-           super_class: super_class,
-           interfaces: interfaces,
-           fields: fields,
-           methods: methods,
-       })
+        magic: magic,
+        minor_version: minor_version,
+        major_version: major_version,
+        constant_pool: constant_pool,
+        access_flags: access_flags,
+        this_class: this_class,
+        super_class: super_class,
+        interfaces: interfaces,
+        fields: fields,
+        methods: methods,
+    })
 }
 
 fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> {
@@ -85,7 +75,7 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
 }
 
 #[derive(Debug)]
-struct ClassFile {
+pub struct ClassFile {
     magic: u32,
     minor_version: u16,
     major_version: u16,
@@ -99,7 +89,7 @@ struct ClassFile {
 }
 
 #[derive(Debug)]
-enum ConstantPoolInfo {
+pub enum ConstantPoolInfo {
     Utf8(String),
     Integer(u32),
     Class { name_index: u16 },
@@ -136,7 +126,7 @@ fn parse_fields<R: Read>(input: &mut R) -> Result<Vec<FieldInfo>> {
 }
 
 #[derive(Debug)]
-struct FieldInfo {
+pub struct FieldInfo {
     access_flags: u16,
     name_index: u16,
     descriptor_index: u16,
@@ -163,7 +153,7 @@ fn parse_methods<R: Read>(input: &mut R) -> Result<Vec<MethodInfo>> {
 }
 
 #[derive(Debug)]
-struct MethodInfo {
+pub struct MethodInfo {
     access_flags: u16,
     name_index: u16,
     descriptor_index: u16,
@@ -188,20 +178,7 @@ fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
 }
 
 #[derive(Debug)]
-struct AttributeInfo {
+pub struct AttributeInfo {
     attribute_name_index: u16,
     info: Vec<u8>,
-}
-
-bitflags! {
-    flags AccessFlags: u16 {
-        const ACC_PUBLIC = 0x0001,
-        const ACC_FINAL = 0x0010,
-        const ACC_SUPER = 0x0020,
-        const ACC_INTERFACE = 0x0200,
-        const ACC_ABSTRACT = 0x0400,
-        const ACC_SYNTHETIC = 0x1000,
-        const ACC_ANNOTATION = 0x2000,
-        const ACC_ENUM = 0x4000,
-    }
 }

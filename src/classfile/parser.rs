@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::io::Result;
 use byteorder::{BigEndian, ReadBytesExt};
-use super::constants::*;
+pub use super::constants::*;
 
 pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let magic = input.read_u32::<BigEndian>()?;
@@ -18,7 +18,7 @@ pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
         magic: magic,
         minor_version: minor_version,
         major_version: major_version,
-        constant_pool: constant_pool,
+        constant_pool: ConstantPool { constants: constant_pool },
         access_flags: access_flags,
         this_class: this_class,
         super_class: super_class,
@@ -28,7 +28,7 @@ pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     })
 }
 
-fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> {
+fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantInfo>> {
     let count = input.read_u16::<BigEndian>()?;
     let mut constant_pool = vec![];
     for _ in 1..count {
@@ -39,14 +39,14 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
                 let mut bytes = vec![0; length as usize];
                 input.read_exact(&mut bytes)?;
                 let utf8 = String::from_utf8(bytes).unwrap();
-                ConstantPoolInfo::Utf8(utf8)
+                ConstantInfo::Utf8(utf8)
             }
-            3 => ConstantPoolInfo::Integer(input.read_u32::<BigEndian>()?),
-            7 => ConstantPoolInfo::Class { name_index: input.read_u16::<BigEndian>()? },
+            3 => ConstantInfo::Integer(input.read_u32::<BigEndian>()?),
+            7 => ConstantInfo::Class { name_index: input.read_u16::<BigEndian>()? },
             9 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_and_type_index = input.read_u16::<BigEndian>()?;
-                ConstantPoolInfo::FieldRef {
+                ConstantInfo::FieldRef {
                     class_index: class_index,
                     name_and_type_index: name_and_type_index,
                 }
@@ -54,7 +54,7 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
             10 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_and_type_index = input.read_u16::<BigEndian>()?;
-                ConstantPoolInfo::MethodRef {
+                ConstantInfo::MethodRef {
                     class_index: class_index,
                     name_and_type_index: name_and_type_index,
                 }
@@ -62,7 +62,7 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
             12 => {
                 let name_index = input.read_u16::<BigEndian>()?;
                 let descriptor_index = input.read_u16::<BigEndian>()?;
-                ConstantPoolInfo::NameAndType {
+                ConstantInfo::NameAndType {
                     name_index: name_index,
                     descriptor_index: descriptor_index,
                 }
@@ -76,20 +76,42 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantPoolInfo>> 
 
 #[derive(Debug)]
 pub struct ClassFile {
-    magic: u32,
-    minor_version: u16,
-    major_version: u16,
-    constant_pool: Vec<ConstantPoolInfo>,
-    access_flags: AccessFlags,
-    this_class: u16,
-    super_class: u16,
-    interfaces: Vec<u16>,
-    fields: Vec<FieldInfo>,
-    methods: Vec<MethodInfo>,
+    pub magic: u32,
+    pub minor_version: u16,
+    pub major_version: u16,
+    pub constant_pool: ConstantPool,
+    pub access_flags: AccessFlags,
+    pub this_class: u16,
+    pub super_class: u16,
+    pub interfaces: Vec<u16>,
+    pub fields: Vec<FieldInfo>,
+    pub methods: Vec<MethodInfo>,
 }
 
 #[derive(Debug)]
-pub enum ConstantPoolInfo {
+pub struct ConstantPool {
+    constants: Vec<ConstantInfo>,
+}
+
+impl ConstantPool {
+    pub fn lookup(&self, index: u16) -> &ConstantInfo {
+        &self.constants[index as usize - 1]
+    }
+
+    pub fn lookup_string(&self, index: u16) -> &str {
+        match *self.lookup(index) {
+            ConstantInfo::Utf8(ref s) => s,
+            ref constant_info => {
+                panic!("Error: Expected a UTF8 string looking up {} but found: {:?}",
+                       index,
+                       constant_info)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ConstantInfo {
     Utf8(String),
     Integer(u32),
     Class { name_index: u16 },
@@ -137,7 +159,7 @@ fn parse_methods<R: Read>(input: &mut R) -> Result<Vec<MethodInfo>> {
     let count = input.read_u16::<BigEndian>()?;
     let mut methods = vec![];
     for _ in 0..count {
-        let access_flags = input.read_u16::<BigEndian>()?;
+        let access_flags = AccessFlags::from_bits(input.read_u16::<BigEndian>()?).unwrap();
         let name_index = input.read_u16::<BigEndian>()?;
         let descriptor_index = input.read_u16::<BigEndian>()?;
         let attributes = parse_attributes(input)?;
@@ -154,10 +176,10 @@ fn parse_methods<R: Read>(input: &mut R) -> Result<Vec<MethodInfo>> {
 
 #[derive(Debug)]
 pub struct MethodInfo {
-    access_flags: u16,
-    name_index: u16,
-    descriptor_index: u16,
-    attributes: Vec<AttributeInfo>,
+    pub access_flags: AccessFlags,
+    pub name_index: u16,
+    pub descriptor_index: u16,
+    pub attributes: Vec<AttributeInfo>,
 }
 
 fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
@@ -167,9 +189,9 @@ fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
         let attribute_name_index = input.read_u16::<BigEndian>()?;
         let attribute_length = input.read_u32::<BigEndian>()?;
         let mut info = vec![0; attribute_length as usize];
-        input.read_exact(&mut info);
+        input.read_exact(&mut info)?;
         let attribute = AttributeInfo {
-            attribute_name_index: attribute_name_index,
+            name_index: attribute_name_index,
             info: info,
         };
         attributes.push(attribute);
@@ -179,6 +201,6 @@ fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
 
 #[derive(Debug)]
 pub struct AttributeInfo {
-    attribute_name_index: u16,
-    info: Vec<u8>,
+    pub name_index: u16,
+    pub info: Vec<u8>,
 }

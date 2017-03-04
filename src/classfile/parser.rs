@@ -182,7 +182,7 @@ pub struct MethodInfo {
     pub attributes: Vec<AttributeInfo>,
 }
 
-fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
+pub fn parse_attributes<R: Read>(input: &mut R) -> Result<Vec<AttributeInfo>> {
     let count = input.read_u16::<BigEndian>()?;
     let mut attributes = vec![];
     for _ in 0..count {

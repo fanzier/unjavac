@@ -15,7 +15,6 @@ fn main() {
     let input = matches.value_of("INPUT").unwrap();
     let mut f = File::open(input).unwrap();
     let class_file = parse_class_file(&mut f).unwrap();
-    println!("{:?}", class_file);
     let compilation_unit = transform(class_file);
-    println!("{:?}", compilation_unit);
+    println!("{:#?}", compilation_unit);
 }

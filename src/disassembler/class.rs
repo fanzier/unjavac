@@ -40,7 +40,7 @@ pub enum Declaration {
         modifiers: Vec<Modifier>,
         name: String,
         signature: Signature,
-        code: Code,
+        code: Option<Code>,
     },
 }
 

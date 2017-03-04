@@ -1,9 +1,11 @@
 pub use super::super::classfile::parser::*;
 pub use super::class::*;
+pub use super::disassembler::*;
 
 pub fn transform(class_file: ClassFile) -> CompilationUnit {
     let declarations =
         class_file.methods.iter().map(|method| transform_method(&class_file, method)).collect();
+    // TODO: Also process fields, inner classes etc.
     CompilationUnit {
         typ: if class_file.access_flags.contains(ACC_INTERFACE) {
             UnitType::Interface
@@ -45,12 +47,13 @@ fn transform_method(class_file: &ClassFile, method: &MethodInfo) -> Declaration 
     let mut code = None;
     for attribute in &method.attributes {
         if constant_pool.lookup_string(attribute.name_index) == "Code" {
-            code = Some(Code {});
-            // TODO
+            let code_attribute = parse_code_attribute(&attribute.info).unwrap();
+            println!("Parsed code attribute: {:#?}", code_attribute);
+            let disassembly = disassemble(class_file, code_attribute);
+            code = Some(disassembly);
             break;
         }
     }
-    let code = code.unwrap();
     Declaration::Method {
         modifiers: method_flags_to_modifiers(&method.access_flags),
         name: constant_pool.lookup_string(method.name_index).to_owned(),
@@ -79,9 +82,7 @@ fn method_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     if flags.contains(ACC_FINAL) {
         modifiers.push(Modifier::Final);
     }
-
-
-
+    // Method specific flags:
     if flags.contains(ACC_SYNCHRONIZED) {
         modifiers.push(Modifier::Synchronized);
     }
@@ -147,3 +148,4 @@ fn descriptor_to_type<I: Iterator<Item = char>>(chars: &mut I) -> Type {
         _ => panic!("Invalid start of type descriptor: {:?}", next),
     }
 }
+

@@ -148,4 +148,3 @@ fn descriptor_to_type<I: Iterator<Item = char>>(chars: &mut I) -> Type {
         _ => panic!("Invalid start of type descriptor: {:?}", next),
     }
 }
-

@@ -37,11 +37,11 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
         let handler_pc = input.read_u16::<BigEndian>()?;
         let catch_type = input.read_u16::<BigEndian>()?;
         exception_table.push(ExceptionTableEntry {
-                                 start_pc: start_pc,
-                                 end_pc: end_pc,
-                                 handler_pc: handler_pc,
-                                 catch_type: catch_type,
-                             });
+            start_pc: start_pc,
+            end_pc: end_pc,
+            handler_pc: handler_pc,
+            catch_type: catch_type,
+        });
     }
     let attributes = parse_attributes(&mut input)?;
     Ok(CodeAttribute {
@@ -54,6 +54,17 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
 }
 
 pub fn disassemble(class_file: &ClassFile, code: CodeAttribute) -> Code {
-    Code {}
+    let len = code.code.len();
+    let mut instructions = Vec::with_capacity(len);
+    for _ in 0..len {
+        instructions.push(Instruction::Nop);
+    }
+    let mut bytes = code.code.iter().cloned();
+    use std::iter::ExactSizeIterator;
+    while let Some(opcode) = bytes.next() {
+        let pc = len - bytes.len() - 1;
+        let instruction = decode_instruction(opcode, &mut bytes);
+        instructions[pc] = instruction;
+    }
+    Code { instructions: instructions }
 }
-

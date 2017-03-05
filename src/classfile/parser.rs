@@ -43,6 +43,7 @@ fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantInfo>> {
             }
             3 => ConstantInfo::Integer(input.read_u32::<BigEndian>()?),
             7 => ConstantInfo::Class { name_index: input.read_u16::<BigEndian>()? },
+            8 => ConstantInfo::String { string_index: input.read_u16::<BigEndian>()? },
             9 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_and_type_index = input.read_u16::<BigEndian>()?;
@@ -115,6 +116,7 @@ pub enum ConstantInfo {
     Utf8(String),
     Integer(u32),
     Class { name_index: u16 },
+    String { string_index: u16 },
     FieldRef {
         class_index: u16,
         name_and_type_index: u16,

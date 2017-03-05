@@ -1,4 +1,5 @@
 pub use super::super::classfile::parser::*;
+pub use super::instructions::*;
 
 #[derive(Debug)]
 pub struct CompilationUnit {
@@ -67,5 +68,6 @@ pub struct Signature {
 
 #[derive(Debug)]
 pub struct Code {
-    // TODO
+    // TODO: Exception handlers
+    pub instructions: Vec<Instruction>,
 }

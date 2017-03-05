@@ -1,1 +1,6 @@
 target
+Cargo.lock
+*.bk
+try
+*.pdf
+TODO.txt

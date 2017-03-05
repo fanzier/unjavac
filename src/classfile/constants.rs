@@ -1,5 +1,6 @@
 bitflags! {
     pub flags AccessFlags: u16 {
+        // Classes:
         const ACC_PUBLIC = 0x0001,
         const ACC_PRIVATE = 0x0002,
         const ACC_PROTECTED = 0x0004,
@@ -18,5 +19,7 @@ bitflags! {
         const ACC_VARARGS = 0x0080,
         const ACC_NATIVE = 0x0100,
         const ACC_STRICT = 0x0800,
+
+        // TODO: Fields
     }
 }

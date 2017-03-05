@@ -11,7 +11,7 @@ pub struct ConstantPool {
 #[derive(Debug)]
 pub enum ConstantInfo {
     Utf8(String),
-    Integer(u32),
+    Integer(i32),
     Class { name_index: u16 },
     String { string_index: u16 },
     FieldRef {
@@ -41,7 +41,10 @@ pub fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantInfo>> 
                 let utf8 = String::from_utf8(bytes).unwrap();
                 ConstantInfo::Utf8(utf8)
             }
-            3 => ConstantInfo::Integer(input.read_u32::<BigEndian>()?),
+            3 => {
+                let unsigned = input.read_u32::<BigEndian>()?;
+                ConstantInfo::Integer(unsigned as i32)
+            }
             7 => ConstantInfo::Class { name_index: input.read_u16::<BigEndian>()? },
             8 => ConstantInfo::String { string_index: input.read_u16::<BigEndian>()? },
             9 => {
@@ -91,3 +94,4 @@ impl ConstantPool {
         }
     }
 }
+

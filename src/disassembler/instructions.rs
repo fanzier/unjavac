@@ -139,6 +139,7 @@ pub enum ControlTransfer {}
 pub enum Invoke {
     Special(u16),
     Virtual(u16),
+    Static(u16),
 }
 
 pub fn decode_invoke<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Invoke {
@@ -147,6 +148,7 @@ pub fn decode_invoke<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Invoke
     match opcode {
         0xb6 => Virtual(index),
         0xb7 => Special(index),
+        0xb8 => Static(index),
         _ => unimplemented!(),
     }
 }

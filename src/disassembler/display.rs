@@ -226,25 +226,23 @@ impl ObjManip {
 
 impl Invoke {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
-        match *self {
+        let index = match *self {
             Invoke::Virtual(index) => {
-                let method_ref = unit.method_refs.get(&index).unwrap();
-                let class = &unit.class_refs.get(&method_ref.class_ref).unwrap().0;
-                write!(f,
-                       "invoke virtual {}.{}: {}",
-                       class,
-                       method_ref.name,
-                       method_ref.signature)
+                write!(f, "invoke virtual")?;
+                index
             }
             Invoke::Special(index) => {
-                let method_ref = unit.method_refs.get(&index).unwrap();
-                let class = &unit.class_refs.get(&method_ref.class_ref).unwrap().0;
-                write!(f,
-                       "invoke special {}.{}: {}",
-                       class,
-                       method_ref.name,
-                       method_ref.signature)
+                write!(f, "invoke special")?;
+                index
             }
-        }
+            Invoke::Static(index) => {
+                write!(f, "invoke special")?;
+                index
+            }
+        };
+        let method_ref = unit.method_refs.get(&index).unwrap();
+        let class = &unit.class_refs.get(&method_ref.class_ref).unwrap().0;
+        write!(f, " {}.{}: {}", class, method_ref.name, method_ref.signature)
     }
 }
+

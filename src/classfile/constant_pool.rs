@@ -5,7 +5,7 @@ pub use super::parser::*;
 
 #[derive(Debug)]
 pub struct ConstantPool {
-    constants: Vec<ConstantInfo>,
+    pub constants: Vec<ConstantInfo>,
 }
 
 #[derive(Debug)]
@@ -14,14 +14,8 @@ pub enum ConstantInfo {
     Integer(i32),
     Class { name_index: u16 },
     String { string_index: u16 },
-    FieldRef {
-        class_index: u16,
-        name_and_type_index: u16,
-    },
-    MethodRef {
-        class_index: u16,
-        name_and_type_index: u16,
-    },
+    FieldRef { class_index: u16, name_index: u16 },
+    MethodRef { class_index: u16, name_index: u16 },
     NameAndType {
         name_index: u16,
         descriptor_index: u16,
@@ -49,18 +43,18 @@ pub fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantInfo>> 
             8 => ConstantInfo::String { string_index: input.read_u16::<BigEndian>()? },
             9 => {
                 let class_index = input.read_u16::<BigEndian>()?;
-                let name_and_type_index = input.read_u16::<BigEndian>()?;
+                let name_index = input.read_u16::<BigEndian>()?;
                 ConstantInfo::FieldRef {
                     class_index: class_index,
-                    name_and_type_index: name_and_type_index,
+                    name_index: name_index,
                 }
             }
             10 => {
                 let class_index = input.read_u16::<BigEndian>()?;
-                let name_and_type_index = input.read_u16::<BigEndian>()?;
+                let name_index = input.read_u16::<BigEndian>()?;
                 ConstantInfo::MethodRef {
                     class_index: class_index,
-                    name_and_type_index: name_and_type_index,
+                    name_index: name_index,
                 }
             }
             12 => {
@@ -94,4 +88,3 @@ impl ConstantPool {
         }
     }
 }
-

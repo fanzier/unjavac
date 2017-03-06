@@ -53,7 +53,7 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
     })
 }
 
-pub fn disassemble(class_file: &ClassFile, code: CodeAttribute) -> Code {
+pub fn disassemble(unit: &CompilationUnit, code: CodeAttribute) -> Code {
     let len = code.code.len();
     let mut instructions = Vec::with_capacity(len);
     for _ in 0..len {

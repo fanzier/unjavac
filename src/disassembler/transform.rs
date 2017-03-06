@@ -1,12 +1,10 @@
 pub use super::super::classfile::parser::*;
 pub use super::class::*;
 pub use super::disassembler::*;
+use std::collections::HashMap;
 
 pub fn transform(class_file: ClassFile) -> CompilationUnit {
-    let declarations =
-        class_file.methods.iter().map(|method| transform_method(&class_file, method)).collect();
-    // TODO: Also process fields, inner classes etc.
-    CompilationUnit {
+    let mut unit = CompilationUnit {
         typ: if class_file.access_flags.contains(ACC_INTERFACE) {
             UnitType::Interface
         } else if class_file.access_flags.contains(ACC_ENUM) {
@@ -14,9 +12,19 @@ pub fn transform(class_file: ClassFile) -> CompilationUnit {
         } else {
             UnitType::Class
         },
-        modifiers: class_flags_to_modifiers(&class_file.access_flags),
-        declarations: declarations,
-    }
+        modifiers: vec![],
+        declarations: vec![],
+        java_constants: HashMap::new(),
+        string_constants: HashMap::new(),
+        class_refs: HashMap::new(),
+        field_refs: HashMap::new(),
+        method_refs: HashMap::new(),
+        name_refs: HashMap::new(),
+    };
+    unit.modifiers = class_flags_to_modifiers(&class_file.access_flags);
+    process_constant_pool(&mut unit, class_file.constant_pool);
+    process_methods(&mut unit, &class_file.methods);
+    unit
 }
 
 fn class_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
@@ -42,22 +50,98 @@ fn class_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     modifiers
 }
 
-fn transform_method(class_file: &ClassFile, method: &MethodInfo) -> Declaration {
-    let ref constant_pool = class_file.constant_pool;
+fn process_constant_pool(unit: &mut CompilationUnit, constant_pool: ConstantPool) {
+    for (index, constant) in constant_pool.constants.iter().enumerate() {
+        let index = index as u16 + 1; // plus one because of weird indexing in the JVM spec
+        match *constant {
+            ConstantInfo::Utf8(ref str) => {
+                unit.string_constants.insert(index, str.to_owned());
+            }
+            ConstantInfo::Integer(int) => {
+                unit.java_constants.insert(index, JavaConstant::Integer(int));
+            }
+            ConstantInfo::Class { name_index } => {
+                let name = constant_pool.lookup_string(name_index);
+                unit.class_refs.insert(index, ClassRef(name.to_owned()));
+            }
+            ConstantInfo::String { string_index } => {
+                let string = constant_pool.lookup_string(string_index);
+                unit.java_constants.insert(index, JavaConstant::String(string.to_owned()));
+            }
+            ConstantInfo::FieldRef { class_index, name_index } => {
+                let (name_index, descriptor_index) = match *constant_pool.lookup(name_index) {
+                    ConstantInfo::NameAndType { name_index, descriptor_index } => {
+                        (name_index, descriptor_index)
+                    }
+                    ref c => panic!("Index doesn't point to a NameAndType but to: {:#?}", c),
+                };
+                let name = constant_pool.lookup_string(name_index).to_owned();
+                let descriptor = constant_pool.lookup_string(descriptor_index);
+                let typ = descriptor_to_type(&mut descriptor.chars());
+                unit.field_refs.insert(index,
+                                       FieldRef {
+                                           class_ref: class_index,
+                                           name: name,
+                                           typ: typ,
+                                       });
+            }
+            ConstantInfo::MethodRef { class_index, name_index } => {
+                let (name_index, descriptor_index) = match *constant_pool.lookup(name_index) {
+                    ConstantInfo::NameAndType { name_index, descriptor_index } => {
+                        (name_index, descriptor_index)
+                    }
+                    ref c => panic!("Index doesn't point to a NameAndType but to: {:#?}", c),
+                };
+                let name = constant_pool.lookup_string(name_index).to_owned();
+                let descriptor = constant_pool.lookup_string(descriptor_index);
+                let signature = descriptor_to_signature(descriptor);
+                unit.method_refs.insert(index,
+                                        MethodRef {
+                                            class_ref: class_index,
+                                            name: name,
+                                            signature: signature,
+                                        });
+            }
+            ConstantInfo::NameAndType { name_index, descriptor_index } => {
+                let name = constant_pool.lookup_string(name_index).to_owned();
+                let descriptor_string = constant_pool.lookup_string(descriptor_index);
+                let descriptor = if descriptor_string.chars().next() == Some('(') {
+                    Descriptor::Signature(descriptor_to_signature(descriptor_string))
+                } else {
+                    Descriptor::Type(descriptor_to_type(&mut descriptor_string.chars()))
+                };
+                unit.name_refs.insert(index,
+                                      NameRef {
+                                          name: name,
+                                          typ: descriptor,
+                                      });
+            }
+        }
+    }
+}
+
+fn process_methods(unit: &mut CompilationUnit, methods: &[MethodInfo]) {
+    for method in methods {
+        let transformed = transform_method(&unit, &method);
+        unit.declarations.push(transformed);
+    }
+}
+
+fn transform_method(unit: &CompilationUnit, method: &MethodInfo) -> Declaration {
     let mut code = None;
     for attribute in &method.attributes {
-        if constant_pool.lookup_string(attribute.name_index) == "Code" {
+        let name = unit.lookup_string(attribute.name_index);
+        if name == "Code" {
             let code_attribute = parse_code_attribute(&attribute.info).unwrap();
-            println!("Parsed code attribute: {:#?}", code_attribute);
-            let disassembly = disassemble(class_file, code_attribute);
+            let disassembly = disassemble(unit, code_attribute);
             code = Some(disassembly);
             break;
         }
     }
     Declaration::Method {
         modifiers: method_flags_to_modifiers(&method.access_flags),
-        name: constant_pool.lookup_string(method.name_index).to_owned(),
-        signature: descriptor_to_signature(constant_pool.lookup_string(method.descriptor_index)),
+        name: unit.lookup_string(method.name_index).to_owned(),
+        signature: descriptor_to_signature(unit.lookup_string(method.descriptor_index)),
         code: code,
     }
 }

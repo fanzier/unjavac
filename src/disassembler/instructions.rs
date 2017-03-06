@@ -1,6 +1,6 @@
 pub use super::class::*;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Kind {
     B, // byte
     S, // short
@@ -54,16 +54,16 @@ pub fn decode_instruction<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> I
     }
 }
 
-pub fn read_u16_index<I: Iterator<Item = u8>>(iter: &mut I) -> usize {
+pub fn read_u16_index<I: Iterator<Item = u8>>(iter: &mut I) -> u16 {
     let index1 = iter.next().unwrap();
     let index2 = iter.next().unwrap();
-    (index1 as usize) << 8 | index2 as usize
+    (index1 as u16) << 8 | index2 as u16
 }
 
 #[derive(Debug)]
 pub enum Load {
     Var(Kind, usize),
-    Ldc(usize),
+    Ldc(u16),
 }
 
 pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Load {
@@ -71,7 +71,7 @@ pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Load {
     match opcode {
         0x12 => {
             let index = iter.next().unwrap();
-            Ldc(index as usize)
+            Ldc(index as u16)
         }
         0x1a...0x1d => Var(Kind::I, (opcode - 0x1a) as usize),
         0x2a...0x2d => Var(Kind::A, (opcode - 0x2a) as usize),
@@ -100,16 +100,16 @@ pub enum TypeConv {}
 
 #[derive(Debug)]
 pub enum ObjManip {
-    Access(GetOrPut, StaticOrField, usize),
+    Access(GetOrPut, StaticOrField, u16),
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum GetOrPut {
     Get,
     Put,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum StaticOrField {
     Static,
     Field,
@@ -137,8 +137,8 @@ pub enum ControlTransfer {}
 
 #[derive(Debug)]
 pub enum Invoke {
-    Special(usize),
-    Virtual(usize),
+    Special(u16),
+    Virtual(u16),
 }
 
 pub fn decode_invoke<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Invoke {

@@ -18,10 +18,17 @@ fn main() {
     println!(r#"
 PARSED CLASS FILE:
 ==================
-{:#?}"#, class_file);
+{:#?}"#,
+             class_file);
     let compilation_unit = transform(class_file);
     println!(r#"
 DISASSEMBLY:
 ============
-{:#?}"#, compilation_unit);
+{:#?}"#,
+             compilation_unit);
+    println!(r#"
+DISASSEMBLY PRETTY-PRINTED:
+============
+{}"#,
+             compilation_unit);
 }

@@ -56,15 +56,12 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
 pub fn disassemble(unit: &CompilationUnit, code: CodeAttribute) -> Code {
     let len = code.code.len();
     let mut instructions = Vec::with_capacity(len);
-    for _ in 0..len {
-        instructions.push(Instruction::Nop);
-    }
     let mut bytes = code.code.iter().cloned();
     use std::iter::ExactSizeIterator;
     while let Some(opcode) = bytes.next() {
         let pc = len - bytes.len() - 1;
         let instruction = decode_instruction(opcode, &mut bytes);
-        instructions[pc] = instruction;
+        instructions.push((pc as u16, instruction));
     }
     Code { instructions: instructions }
 }

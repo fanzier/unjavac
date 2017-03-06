@@ -6,6 +6,7 @@ use std::collections::HashMap;
 pub struct CompilationUnit {
     pub typ: UnitType,
     pub modifiers: Vec<Modifier>,
+    pub name: String,
     pub declarations: Vec<Declaration>,
     pub java_constants: HashMap<u16, JavaConstant>,
     pub string_constants: HashMap<u16, String>,
@@ -21,14 +22,14 @@ impl CompilationUnit {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum UnitType {
     Class,
     Interface,
     Enum,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Modifier {
     Public,
     Protected,
@@ -117,5 +118,5 @@ pub struct NameRef {
 #[derive(Debug)]
 pub struct Code {
     // TODO: Exception handlers
-    pub instructions: Vec<Instruction>,
+    pub instructions: Vec<(u16, Instruction)>,
 }

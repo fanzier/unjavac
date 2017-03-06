@@ -13,6 +13,7 @@ pub fn transform(class_file: ClassFile) -> CompilationUnit {
             UnitType::Class
         },
         modifiers: vec![],
+        name: String::new(),
         declarations: vec![],
         java_constants: HashMap::new(),
         string_constants: HashMap::new(),
@@ -23,6 +24,7 @@ pub fn transform(class_file: ClassFile) -> CompilationUnit {
     };
     unit.modifiers = class_flags_to_modifiers(&class_file.access_flags);
     process_constant_pool(&mut unit, class_file.constant_pool);
+    unit.name = unit.class_refs.get(&class_file.this_class).unwrap().0.to_owned();
     process_methods(&mut unit, &class_file.methods);
     unit
 }
@@ -187,18 +189,10 @@ fn descriptor_to_signature(descriptor: &str) -> Signature {
         panic!("Expected open paren at beginning of method descriptor: {:?}",
                descriptor);
     }
-    loop {
-        let lookahead = *chars.peek().unwrap();
-        if lookahead != ')' {
-            params.push(descriptor_to_type(&mut chars));
-        }
-        let next = chars.next().unwrap();
-        match next {
-            ')' => break,
-            ',' => (),
-            _ => panic!("Expected ')' or ',' in method descriptor: {:?}", descriptor),
-        }
+    while *chars.peek().unwrap() != ')' {
+        params.push(descriptor_to_type(&mut chars));
     }
+    chars.next().unwrap();
     let return_type = descriptor_to_type(&mut chars);
     Signature {
         parameters: params,

@@ -130,9 +130,7 @@ impl Instruction {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         match *self {
             Instruction::Nop => write!(f, "nop"),
-            Instruction::Load(ref load) => load.fmt(f, unit),
-            Instruction::Store(ref store) => write!(f, "{}", store),
-            Instruction::ObjManip(ref obj_manip) => obj_manip.fmt(f, unit),
+            Instruction::Cpy(ref cpy) => cpy.fmt(f, unit),
             Instruction::Invoke(ref invoke) => invoke.fmt(f, unit),
             Instruction::Return => write!(f, "return"),
             _ => unimplemented!(),
@@ -167,58 +165,62 @@ impl Display for JavaConstant {
     }
 }
 
-impl Load {
+impl Cpy {
+    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+        self.to.fmt(f, unit)?;
+        write!(f, " <- ")?;
+        self.from.fmt(f, unit)
+    }
+}
+
+impl LValue {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         match *self {
-            Load::Var(k, i) => write!(f, "load local_{}: {}", i, k),
-            Load::Ldc(c) => {
+            LValue::PushStack => write!(f, "push onto stack"),
+            LValue::Local(i) => write!(f, "local_{}", i),
+            LValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            LValue::StaticField { field_ref } => {
+                let field = unit.field_refs.get(&field_ref).unwrap();
+                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
+            }
+            LValue::InstanceField { object_stack_index, field_ref } => {
+                let field = unit.field_refs.get(&field_ref).unwrap();
+                let class = &unit.class_refs.get(&field.class_ref).unwrap();
                 write!(f,
-                       "load constant {}",
-                       unit.java_constants.get(&(c as u16)).unwrap())
+                       "(stack[-{}]: {}).{}: {}",
+                       object_stack_index + 1,
+                       &class.0,
+                       field.name,
+                       field.typ)
             }
         }
     }
 }
 
-impl Display for Store {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            Store::Var(k, i) => write!(f, "store in local_{}: {}", i, k),
-        }
-    }
-}
-
-impl Display for GetOrPut {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            GetOrPut::Get => write!(f, "get"),
-            GetOrPut::Put => write!(f, "put"),
-        }
-    }
-}
-
-impl Display for StaticOrField {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        match *self {
-            StaticOrField::Static => write!(f, "static"),
-            StaticOrField::Field => write!(f, "field"),
-        }
-    }
-}
-
-impl ObjManip {
+impl RValue {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         match *self {
-            ObjManip::Access(rp, sf, index) => {
-                let field_ref = unit.field_refs.get(&index).unwrap();
-                let class = &unit.class_refs.get(&field_ref.class_ref).unwrap().0;
+            RValue::Constant { const_ref } => {
+                let constant = unit.java_constants.get(&const_ref).unwrap();
+                write!(f, "{}", constant)
+            }
+            RValue::Local(i) => write!(f, "local_{}", i),
+            RValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            RValue::StaticField { field_ref } => {
+                let field = unit.field_refs.get(&field_ref).unwrap();
+                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
+            }
+            RValue::InstanceField { object_stack_index, field_ref } => {
+                let field = unit.field_refs.get(&field_ref).unwrap();
+                let class = &unit.class_refs.get(&field.class_ref).unwrap();
                 write!(f,
-                       "{} {} {}.{}: {}",
-                       rp,
-                       sf,
-                       class,
-                       field_ref.name,
-                       field_ref.typ)
+                       "(stack[-{}]: {}).{}: {}",
+                       object_stack_index + 1,
+                       &class.0,
+                       field.name,
+                       field.typ)
             }
         }
     }
@@ -242,7 +244,10 @@ impl Invoke {
         };
         let method_ref = unit.method_refs.get(&index).unwrap();
         let class = &unit.class_refs.get(&method_ref.class_ref).unwrap().0;
-        write!(f, " {}.{}: {}", class, method_ref.name, method_ref.signature)
+        write!(f,
+               " {}.{}: {}",
+               class,
+               method_ref.name,
+               method_ref.signature)
     }
 }
-

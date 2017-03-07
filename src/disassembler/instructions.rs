@@ -15,8 +15,7 @@ pub enum Kind {
 #[derive(Debug)]
 pub enum Instruction {
     Nop,
-    Load(Load),
-    Store(Store),
+    Cpy(Cpy),
     Arithm(Arithm),
     TypeConv(TypeConv),
     ObjManip(ObjManip),
@@ -34,15 +33,15 @@ pub fn decode_instruction<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> I
     println!("Decoding opcode 0x{:x}.", opcode);
     match opcode {
         0x00 => Nop,
-        0x01...0x35 => Load(decode_load(opcode, iter)),
-        0x36...0x56 => Store(decode_store(opcode, iter)),
+        0x01...0x35 | 0xb2 | 0xb4 => Cpy(decode_load(opcode, iter)),
+        0x36...0x56 | 0xb3 | 0xb5 => Cpy(decode_store(opcode, iter)),
         0x57...0x5f => unimplemented!(), // stack Stack
         0x60...0x84 => unimplemented!(), // arithmetic
         0x85...0x93 => unimplemented!(), // type conversion
         0x94...0x98 => unimplemented!(), // comparison (arithmetic)
         0x99...0xab => unimplemented!(), // control flow
         0xac...0xb1 => Return,
-        0xb2...0xb5 => ObjManip(decode_object_manip(opcode, iter)),
+        0xb2...0xb5 => Cpy(decode_store(opcode, iter)), // get/put field
         0xb6...0xba => Invoke(decode_invoke(opcode, iter)),
         0xbb...0xbe => unimplemented!(), // object manip
         0xbf => Throw,
@@ -61,34 +60,85 @@ pub fn read_u16_index<I: Iterator<Item = u8>>(iter: &mut I) -> u16 {
 }
 
 #[derive(Debug)]
-pub enum Load {
-    Var(Kind, usize),
-    Ldc(u16),
-}
-
-pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Load {
-    use self::Load::*;
-    match opcode {
-        0x12 => {
-            let index = iter.next().unwrap();
-            Ldc(index as u16)
-        }
-        0x1a...0x1d => Var(Kind::I, (opcode - 0x1a) as usize),
-        0x2a...0x2d => Var(Kind::A, (opcode - 0x2a) as usize),
-        _ => unimplemented!(),
-    }
+pub struct Cpy {
+    pub to: LValue,
+    pub from: RValue,
 }
 
 #[derive(Debug)]
-pub enum Store {
-    Var(Kind, usize),
+pub enum LValue {
+    PushStack,
+    Local(usize),
+    Stack(usize), // Stack(i): i-th element from top of stack, i.e. Stack(0) is top of stack
+    StaticField { field_ref: u16 },
+    InstanceField {
+        object_stack_index: usize,
+        field_ref: u16,
+    },
 }
 
-pub fn decode_store<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Store {
-    use self::Store::*;
-    match opcode {
-        0x3b...0x3e => Var(Kind::I, (opcode - 0x3b) as usize),
+#[derive(Debug)]
+pub enum RValue {
+    Constant { const_ref: u16 },
+    Local(usize),
+    Stack(usize), // Stack(i): i-th element from top of stack, i.e. Stack(0) is top of stack
+    StaticField { field_ref: u16 },
+    InstanceField {
+        object_stack_index: usize,
+        field_ref: u16,
+    },
+}
+
+pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Cpy {
+    let origin = match opcode {
+        0x12 => {
+            let index = iter.next().unwrap();
+            RValue::Constant { const_ref: index as u16 }
+        }
+        0x1a...0x1d => RValue::Local((opcode - 0x1a) as usize),
+        0x2a...0x2d => RValue::Local((opcode - 0x2a) as usize),
+        0xb2 => {
+            //getstatic
+            let index = read_u16_index(iter);
+            RValue::StaticField { field_ref: index }
+        }
+        0xb4 => {
+            //getfield
+            let index = read_u16_index(iter);
+            RValue::InstanceField {
+                object_stack_index: 0,
+                field_ref: index,
+            }
+        }
         _ => unimplemented!(),
+    };
+    Cpy {
+        to: LValue::PushStack,
+        from: origin,
+    }
+}
+
+pub fn decode_store<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Cpy {
+    let target = match opcode {
+        0x3b...0x3e => LValue::Local((opcode - 0x3b) as usize),
+        0xb3 => {
+            // putstatic
+            let index = read_u16_index(iter);
+            LValue::StaticField { field_ref: index }
+        }
+        0xb5 => {
+            // putfield
+            let index = read_u16_index(iter);
+            LValue::InstanceField {
+                object_stack_index: 1,
+                field_ref: index,
+            }
+        }
+        _ => unimplemented!(),
+    };
+    Cpy {
+        to: target,
+        from: RValue::Stack(0),
     }
 }
 
@@ -99,35 +149,7 @@ pub enum Arithm {}
 pub enum TypeConv {}
 
 #[derive(Debug)]
-pub enum ObjManip {
-    Access(GetOrPut, StaticOrField, u16),
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum GetOrPut {
-    Get,
-    Put,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum StaticOrField {
-    Static,
-    Field,
-}
-
-pub fn decode_object_manip<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> ObjManip {
-    use self::ObjManip::*;
-    use self::GetOrPut::*;
-    use self::StaticOrField::*;
-    let index = read_u16_index(iter);
-    match opcode {
-        0xb2 => Access(Get, Static, index),
-        0xb3 => Access(Put, Static, index),
-        0xb4 => Access(Get, Field, index),
-        0xb5 => Access(Put, Field, index),
-        _ => unimplemented!(),
-    }
-}
+pub enum ObjManip {}
 
 #[derive(Debug)]
 pub enum StackManage {}

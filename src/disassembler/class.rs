@@ -88,7 +88,13 @@ pub enum Descriptor {
 
 #[derive(Debug)]
 pub enum JavaConstant {
+    NullReference,
+    Byte(i8),
+    Short(i16),
     Integer(i32),
+    Long(i64),
+    Float(f32),
+    Double(f64),
     String(String),
 }
 

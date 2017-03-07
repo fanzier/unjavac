@@ -135,7 +135,7 @@ fn transform_method(unit: &CompilationUnit, method: &MethodInfo) -> Declaration 
         let name = unit.lookup_string(attribute.name_index);
         if name == "Code" {
             let code_attribute = parse_code_attribute(&attribute.info).unwrap();
-            let disassembly = disassemble(unit, code_attribute);
+            let disassembly = disassemble(code_attribute);
             code = Some(disassembly);
             break;
         }

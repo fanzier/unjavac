@@ -133,6 +133,8 @@ impl Instruction {
             Instruction::Cpy(ref cpy) => cpy.fmt(f, unit),
             Instruction::Invoke(ref invoke) => invoke.fmt(f, unit),
             Instruction::Return => write!(f, "return"),
+            Instruction::Jump(ref jump) => write!(f, "{}", jump),
+            Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
             _ => unimplemented!(),
         }
     }
@@ -159,7 +161,13 @@ impl Display for Kind {
 impl Display for JavaConstant {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
+            JavaConstant::NullReference => write!(f, "null"),
+            JavaConstant::Byte(i) => write!(f, "{}: byte", i),
+            JavaConstant::Short(i) => write!(f, "{}: short", i),
             JavaConstant::Integer(i) => write!(f, "{}: int", i),
+            JavaConstant::Long(i) => write!(f, "{}: long", i),
+            JavaConstant::Float(d) => write!(f, "{}: float", d),
+            JavaConstant::Double(d) => write!(f, "{}: double", d),
             JavaConstant::String(ref s) => write!(f, r#""{}": String"#, s),
         }
     }
@@ -167,9 +175,10 @@ impl Display for JavaConstant {
 
 impl Cpy {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
-        self.to.fmt(f, unit)?;
-        write!(f, " <- ")?;
-        self.from.fmt(f, unit)
+        write!(f, "copy ")?;
+        self.from.fmt(f, unit)?;
+        write!(f, " -> ")?;
+        self.to.fmt(f, unit)
     }
 }
 
@@ -201,7 +210,8 @@ impl LValue {
 impl RValue {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         match *self {
-            RValue::Constant { const_ref } => {
+            RValue::Constant(ref constant) => write!(f, "{}", constant),
+            RValue::ConstantRef { const_ref } => {
                 let constant = unit.java_constants.get(&const_ref).unwrap();
                 write!(f, "{}", constant)
             }
@@ -249,5 +259,80 @@ impl Invoke {
                class,
                method_ref.name,
                method_ref.signature)
+    }
+}
+
+impl Display for Jump {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "jump to {:#X} if {}", self.address, self.condition)
+    }
+}
+
+impl Display for JumpCondition {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use self::JumpCondition::*;
+        match *self {
+            True => write!(f, "true"),
+            CmpZero(ord) => write!(f, "stack[-1] {} 0", ord),
+            Cmp(ord) => write!(f, "stack[-2] {} stack[-1]", ord),
+            CmpRef(eq) => write!(f, "stack[-2] {} stack[-1]", eq),
+        }
+    }
+}
+
+impl Display for Ordering {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use self::Ordering::*;
+        write!(f,
+               "{}",
+               match *self {
+                   EQ => "==",
+                   NE => "!=",
+                   LT => "<",
+                   GE => ">=",
+                   GT => ">",
+                   LE => "<=",
+               })
+    }
+}
+
+impl Display for Arithm {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            Arithm::UnaryOp(unary_op) => write!(f, "{}", unary_op),
+            Arithm::BinaryOp(binary_op) => write!(f, "{}", binary_op),
+            Arithm::IncreaseLocal { local_index, increase } => {
+                write!(f, "incerase local_{} by {}", local_index, increase)
+            }
+        }
+    }
+}
+
+impl Display for UnaryOp {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            UnaryOp::Neg => write!(f, "neg"),
+        }
+    }
+}
+
+impl Display for BinaryOp {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        use self::BinaryOp::*;
+        write!(f,
+               "{}",
+               match *self {
+                   Add => "add",
+                   Sub => "sub",
+                   Mul => "mul",
+                   Div => "div",
+                   Rem => "rem",
+                   Shl => "shl",
+                   Shr => "shr",
+                   Ushr => "ushr",
+                   And => "and",
+                   Or => "or",
+                   Xor => "xor",
+               })
     }
 }

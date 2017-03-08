@@ -3,6 +3,7 @@ extern crate jvdcmp;
 
 use jvdcmp::classfile::parser::*;
 use jvdcmp::disassembler::transform::*;
+use jvdcmp::decompiler::decompile::*;
 
 fn main() {
     use std::fs::File;
@@ -15,11 +16,6 @@ fn main() {
     let input = matches.value_of("INPUT").unwrap();
     let mut f = File::open(input).unwrap();
     let class_file = parse_class_file(&mut f).unwrap();
-    println!(r#"
-PARSED CLASS FILE:
-==================
-{:#?}"#,
-             class_file);
     let compilation_unit = transform(class_file);
     println!(r#"
 DISASSEMBLY:
@@ -31,4 +27,5 @@ DISASSEMBLY PRETTY-PRINTED:
 ============
 {}"#,
              compilation_unit);
+    decompile(compilation_unit);
 }

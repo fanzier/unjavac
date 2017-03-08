@@ -7,3 +7,4 @@ authors = ["Fabian Zaiser <fabian.zaiser@gmail.com>"]
 bitflags = ">= 0.8.0"
 byteorder = ">= 1.0.0"
 clap = ">= 2.20.5"
+petgraph = ">= 0.4.3"

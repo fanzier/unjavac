@@ -140,6 +140,20 @@ impl Instruction {
     }
 }
 
+impl Display for Instruction {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            Instruction::Nop => write!(f, "nop"),
+            Instruction::Cpy(ref cpy) => write!(f, "copy {}", cpy),
+            Instruction::Invoke(ref invoke) => write!(f, "invoke {}", invoke),
+            Instruction::Return => write!(f, "return"),
+            Instruction::Jump(ref jump) => write!(f, "{}", jump),
+            Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
+            _ => unimplemented!(),
+        }
+    }
+}
+
 impl Display for Kind {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use self::Kind::*;
@@ -173,12 +187,35 @@ impl Display for JavaConstant {
     }
 }
 
+impl Display for Cpy {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "{} -> {}", self.from, self.to)
+    }
+}
+
 impl Cpy {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         write!(f, "copy ")?;
         self.from.fmt(f, unit)?;
         write!(f, " -> ")?;
         self.to.fmt(f, unit)
+    }
+}
+
+impl Display for LValue {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            LValue::PushStack => write!(f, "push onto stack"),
+            LValue::Local(i) => write!(f, "local_{}", i),
+            LValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            LValue::StaticField { field_ref } => write!(f, "static field {}", field_ref),
+            LValue::InstanceField { object_stack_index, field_ref } => {
+                write!(f,
+                       " field {} of stack[-{}]",
+                       field_ref,
+                       object_stack_index + 1)
+            }
+        }
     }
 }
 
@@ -202,6 +239,24 @@ impl LValue {
                        &class.0,
                        field.name,
                        field.typ)
+            }
+        }
+    }
+}
+
+impl Display for RValue {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match *self {
+            RValue::Constant(ref constant) => write!(f, "{}", constant),
+            RValue::ConstantRef { const_ref } => write!(f, "constant #{}", const_ref),
+            RValue::Local(i) => write!(f, "local_{}", i),
+            RValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            RValue::StaticField { field_ref } => write!(f, "static field {}", field_ref),
+            RValue::InstanceField { object_stack_index, field_ref } => {
+                write!(f,
+                       " field {} of stack[-{}]",
+                       field_ref,
+                       object_stack_index + 1)
             }
         }
     }
@@ -236,6 +291,26 @@ impl RValue {
     }
 }
 
+impl Display for Invoke {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let index = match *self {
+            Invoke::Virtual(index) => {
+                write!(f, "invoke virtual")?;
+                index
+            }
+            Invoke::Special(index) => {
+                write!(f, "invoke special")?;
+                index
+            }
+            Invoke::Static(index) => {
+                write!(f, "invoke static")?;
+                index
+            }
+        };
+        write!(f, " {}", index)
+    }
+}
+
 impl Invoke {
     pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
         let index = match *self {
@@ -264,7 +339,11 @@ impl Invoke {
 
 impl Display for Jump {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "jump to {:#X} if {}", self.address, self.condition)
+        write!(f, "jump to {:#X}", self.address)?;
+        if let Some(condition) = self.condition {
+            write!(f, " if {}", condition)?;
+        }
+        Ok(())
     }
 }
 
@@ -272,7 +351,6 @@ impl Display for JumpCondition {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use self::JumpCondition::*;
         match *self {
-            True => write!(f, "true"),
             CmpZero(ord) => write!(f, "stack[-1] {} 0", ord),
             Cmp(ord) => write!(f, "stack[-2] {} stack[-1]", ord),
             CmpRef(eq) => write!(f, "stack[-2] {} stack[-1]", eq),
@@ -302,7 +380,7 @@ impl Display for Arithm {
             Arithm::UnaryOp(unary_op) => write!(f, "{}", unary_op),
             Arithm::BinaryOp(binary_op) => write!(f, "{}", binary_op),
             Arithm::IncreaseLocal { local_index, increase } => {
-                write!(f, "incerase local_{} by {}", local_index, increase)
+                write!(f, "increase local_{} by {}", local_index, increase)
             }
         }
     }

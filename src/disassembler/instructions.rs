@@ -214,12 +214,11 @@ pub enum StackManage {}
 #[derive(Debug)]
 pub struct Jump {
     pub address: u16,
-    pub condition: JumpCondition,
+    pub condition: Option<JumpCondition>,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum JumpCondition {
-    True,
     CmpZero(Ordering),
     Cmp(Ordering),
     CmpRef(Ordering),
@@ -254,10 +253,10 @@ pub fn decode_jump<I: Iterator<Item = u8>>(opcode: u8, pc: u16, iter: &mut I) ->
     let offset = read_u16_index(iter) as i16;
     let address = (pc as i32 + offset as i32) as u16;
     let condition = match opcode {
-        0x99...0x9e => JumpCondition::CmpZero(Ordering::from_u8(opcode - 0x99)),
-        0x9f...0xa4 => JumpCondition::Cmp(Ordering::from_u8(opcode - 0x9f)),
-        0xa5...0xa6 => JumpCondition::CmpRef(Ordering::from_u8(opcode - 0x9f)),
-        0xa7 => JumpCondition::True,
+        0x99...0x9e => Some(JumpCondition::CmpZero(Ordering::from_u8(opcode - 0x99))),
+        0x9f...0xa4 => Some(JumpCondition::Cmp(Ordering::from_u8(opcode - 0x9f))),
+        0xa5...0xa6 => Some(JumpCondition::CmpRef(Ordering::from_u8(opcode - 0x9f))),
+        0xa7 => None,
         _ => unimplemented!(),
     };
     Jump {

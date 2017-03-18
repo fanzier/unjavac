@@ -3,6 +3,10 @@ name = "jvdcmp"
 version = "0.1.0"
 authors = ["Fabian Zaiser <fabian.zaiser@gmail.com>"]
 
+[[bin]]
+name = "jvdcmp"
+doc = false
+
 [dependencies]
 bitflags = ">= 0.8.0"
 byteorder = ">= 1.0.0"

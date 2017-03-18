@@ -1,4 +1,4 @@
-pub use super::class::*;
+pub use super::compilation_unit::*;
 use std::fmt::*;
 
 fn do_indent(f: &mut Formatter, indent: usize) -> Result {
@@ -13,7 +13,11 @@ fn newline(f: &mut Formatter, indent: usize) -> Result {
     do_indent(f, indent)
 }
 
-impl Display for CompilationUnit {
+pub trait ExtDisplay {
+    fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>, indent: usize) -> Result;
+}
+
+impl Display for CompilationUnit<Code> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         Modifier::fmt_modifiers(f, &self.modifiers)?;
         write!(f, "{} {} {{", self.typ, self.name)?;
@@ -99,35 +103,47 @@ impl Display for Signature {
     }
 }
 
-impl Declaration {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit, indent: usize) -> Result {
+impl<C: ExtDisplay> Declaration<C> {
+    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
         match *self {
-            Declaration::Field { .. } => unimplemented!(),
-            Declaration::Method { ref modifiers, ref name, ref signature, ref code } => {
-                Modifier::fmt_modifiers(f, modifiers)?;
-                write!(f, "{}: {}", name, signature)?;
-                if let Some(ref code) = *code {
-                    write!(f, " {{")?;
-                    {
-                        let indent = indent + 4;
-                        for &(pc, ref instruction) in &code.instructions {
-                            newline(f, indent)?;
-                            write!(f, "{:#6X}: ", pc)?;
-                            instruction.fmt(f, unit)?;
-                        }
-                    }
-                    newline(f, indent)?;
-                    writeln!(f, "}}")
-                } else {
-                    writeln!(f, ";")
-                }
-            }
+            Declaration::Field(_) => unimplemented!(),
+            Declaration::Method(ref m) => m.fmt(f, unit, indent),
         }
     }
 }
 
+impl<C: ExtDisplay> ExtDisplay for Method<C> {
+    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
+        let Method { ref modifiers, ref name, ref signature, ref code } = *self;
+        Modifier::fmt_modifiers(f, modifiers)?;
+        write!(f, "{}: {}", name, signature)?;
+        if let Some(ref code) = *code {
+            write!(f, " {{")?;
+            {
+                let indent = indent + 4;
+                code.fmt(f, unit, indent)?;
+            }
+            newline(f, indent)?;
+            writeln!(f, "}}")
+        } else {
+            writeln!(f, ";")
+        }
+    }
+}
+
+impl ExtDisplay for Code {
+    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
+        for &(pc, ref instruction) in &self.instructions {
+            newline(f, indent)?;
+            write!(f, "{:#6X}: ", pc)?;
+            instruction.fmt(f, unit)?;
+        }
+        Ok(())
+    }
+}
+
 impl Instruction {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         match *self {
             Instruction::Nop => write!(f, "nop"),
             Instruction::Cpy(ref cpy) => cpy.fmt(f, unit),
@@ -194,7 +210,7 @@ impl Display for Cpy {
 }
 
 impl Cpy {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         write!(f, "copy ")?;
         self.from.fmt(f, unit)?;
         write!(f, " -> ")?;
@@ -220,7 +236,7 @@ impl Display for LValue {
 }
 
 impl LValue {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         match *self {
             LValue::PushStack => write!(f, "push onto stack"),
             LValue::Local(i) => write!(f, "local_{}", i),
@@ -263,7 +279,7 @@ impl Display for RValue {
 }
 
 impl RValue {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         match *self {
             RValue::Constant(ref constant) => write!(f, "{}", constant),
             RValue::ConstantRef { const_ref } => {
@@ -312,7 +328,7 @@ impl Display for Invoke {
 }
 
 impl Invoke {
-    pub fn fmt(&self, f: &mut Formatter, unit: &CompilationUnit) -> Result {
+    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         let index = match *self {
             Invoke::Virtual(index) => {
                 write!(f, "invoke virtual")?;
@@ -414,3 +430,4 @@ impl Display for BinaryOp {
                })
     }
 }
+

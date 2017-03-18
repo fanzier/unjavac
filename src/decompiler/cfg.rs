@@ -1,7 +1,7 @@
-use petgraph::*;
-use petgraph::graph::*;
-use petgraph::visit::*;
-use super::super::disassembler::class::*;
+pub use petgraph::*;
+pub use petgraph::graph::*;
+pub use petgraph::visit::*;
+use super::super::disassembler::compilation_unit::*;
 use super::super::disassembler::instructions::*;
 use std::fmt::{Display, Formatter, Result};
 
@@ -9,7 +9,7 @@ type Label = u32;
 
 #[derive(Debug)]
 pub struct Cfg<Stmt, Cond> {
-    graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
+    pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
 }
 
 impl<Stmt: Display, Cond: Display> Display for Cfg<Stmt, Cond> {

@@ -1,5 +1,5 @@
 pub use super::super::classfile::parser::*;
-pub use super::class::*;
+pub use super::compilation_unit::*;
 
 use byteorder::{ReadBytesExt, BigEndian};
 use std::io::{Result, Read};

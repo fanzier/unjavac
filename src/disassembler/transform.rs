@@ -1,9 +1,9 @@
 pub use super::super::classfile::parser::*;
-pub use super::class::*;
-pub use super::disassembler::*;
+pub use super::compilation_unit::*;
+pub use super::disassemble::*;
 use std::collections::HashMap;
 
-pub fn transform(class_file: ClassFile) -> CompilationUnit {
+pub fn transform(class_file: ClassFile) -> CompilationUnit<Code> {
     let mut unit = CompilationUnit {
         typ: if class_file.access_flags.contains(ACC_INTERFACE) {
             UnitType::Interface
@@ -52,7 +52,7 @@ fn class_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     modifiers
 }
 
-fn process_constant_pool(unit: &mut CompilationUnit, constant_pool: ConstantPool) {
+fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: ConstantPool) {
     for (index, constant) in constant_pool.constants.iter().enumerate() {
         let index = index as u16 + 1; // plus one because of weird indexing in the JVM spec
         match *constant {
@@ -122,14 +122,14 @@ fn process_constant_pool(unit: &mut CompilationUnit, constant_pool: ConstantPool
     }
 }
 
-fn process_methods(unit: &mut CompilationUnit, methods: &[MethodInfo]) {
+fn process_methods(unit: &mut CompilationUnit<Code>, methods: &[MethodInfo]) {
     for method in methods {
         let transformed = transform_method(&unit, &method);
         unit.declarations.push(transformed);
     }
 }
 
-fn transform_method(unit: &CompilationUnit, method: &MethodInfo) -> Declaration {
+fn transform_method<C>(unit: &CompilationUnit<C>, method: &MethodInfo) -> Declaration<Code> {
     let mut code = None;
     for attribute in &method.attributes {
         let name = unit.lookup_string(attribute.name_index);
@@ -140,12 +140,12 @@ fn transform_method(unit: &CompilationUnit, method: &MethodInfo) -> Declaration 
             break;
         }
     }
-    Declaration::Method {
+    Declaration::Method(Method {
         modifiers: method_flags_to_modifiers(&method.access_flags),
         name: unit.lookup_string(method.name_index).to_owned(),
         signature: descriptor_to_signature(unit.lookup_string(method.descriptor_index)),
         code: code,
-    }
+    })
 }
 
 fn method_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {

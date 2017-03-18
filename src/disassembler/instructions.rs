@@ -1,4 +1,4 @@
-pub use super::class::*;
+pub use super::compilation_unit::*;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Kind {
@@ -25,7 +25,6 @@ pub enum Instruction {
     Throw,
     Return,
     Synchronized(Synchronized),
-    Invalid(u8),
 }
 
 pub fn decode_instruction<I>(opcode: u8, pc: u16, iter: &mut I) -> Instruction

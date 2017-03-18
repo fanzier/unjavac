@@ -3,11 +3,11 @@ pub use super::instructions::*;
 use std::collections::HashMap;
 
 #[derive(Debug)]
-pub struct CompilationUnit {
+pub struct CompilationUnit<C> {
     pub typ: UnitType,
     pub modifiers: Vec<Modifier>,
     pub name: String,
-    pub declarations: Vec<Declaration>,
+    pub declarations: Vec<Declaration<C>>,
     pub java_constants: HashMap<u16, JavaConstant>,
     pub string_constants: HashMap<u16, String>,
     pub class_refs: HashMap<u16, ClassRef>,
@@ -16,7 +16,7 @@ pub struct CompilationUnit {
     pub name_refs: HashMap<u16, NameRef>,
 }
 
-impl CompilationUnit {
+impl<C> CompilationUnit<C> {
     pub fn lookup_string(&self, index: u16) -> &str {
         self.string_constants.get(&index).unwrap()
     }
@@ -45,18 +45,24 @@ pub enum Modifier {
 }
 
 #[derive(Debug)]
-pub enum Declaration {
-    Field {
-        modifiers: Vec<Modifier>,
-        name: String,
-        typ: Type,
-    },
-    Method {
-        modifiers: Vec<Modifier>,
-        name: String,
-        signature: Signature,
-        code: Option<Code>,
-    },
+pub enum Declaration<C> {
+    Field(Field),
+    Method(Method<C>)
+}
+
+#[derive(Debug)]
+pub struct Field {
+    pub modifiers: Vec<Modifier>,
+    pub name: String,
+    pub typ: Type,
+}
+
+#[derive(Debug)]
+pub struct Method<C> {
+    pub modifiers: Vec<Modifier>,
+    pub name: String,
+    pub signature: Signature,
+    pub code: Option<C>,
 }
 
 #[derive(Debug)]

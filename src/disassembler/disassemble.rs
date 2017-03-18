@@ -37,23 +37,23 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
         let handler_pc = input.read_u16::<BigEndian>()?;
         let catch_type = input.read_u16::<BigEndian>()?;
         exception_table.push(ExceptionTableEntry {
-            start_pc: start_pc,
-            end_pc: end_pc,
-            handler_pc: handler_pc,
-            catch_type: catch_type,
-        });
+                                 start_pc: start_pc,
+                                 end_pc: end_pc,
+                                 handler_pc: handler_pc,
+                                 catch_type: catch_type,
+                             });
     }
     let attributes = parse_attributes(&mut input)?;
     Ok(CodeAttribute {
-        max_stack: max_stack,
-        max_local: max_local,
-        code: code,
-        exception_table: exception_table,
-        attributes: attributes,
-    })
+           max_stack: max_stack,
+           max_local: max_local,
+           code: code,
+           exception_table: exception_table,
+           attributes: attributes,
+       })
 }
 
-pub fn disassemble(code: CodeAttribute) -> Code {
+pub fn disassemble(code: &CodeAttribute) -> Code {
     let len = code.code.len();
     let mut instructions = Vec::with_capacity(len);
     let mut bytes = code.code.iter().cloned();

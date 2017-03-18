@@ -242,13 +242,13 @@ impl LValue {
             LValue::Local(i) => write!(f, "local_{}", i),
             LValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
             LValue::StaticField { field_ref } => {
-                let field = unit.field_refs.get(&field_ref).unwrap();
-                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                let field = &unit.field_refs[&field_ref];
+                let class = &unit.class_refs[&field.class_ref];
                 write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
             }
             LValue::InstanceField { object_stack_index, field_ref } => {
-                let field = unit.field_refs.get(&field_ref).unwrap();
-                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                let field = &unit.field_refs[&field_ref];
+                let class = &unit.class_refs[&field.class_ref];
                 write!(f,
                        "(stack[-{}]: {}).{}: {}",
                        object_stack_index + 1,
@@ -283,19 +283,19 @@ impl RValue {
         match *self {
             RValue::Constant(ref constant) => write!(f, "{}", constant),
             RValue::ConstantRef { const_ref } => {
-                let constant = unit.java_constants.get(&const_ref).unwrap();
+                let constant = &unit.java_constants[&const_ref];
                 write!(f, "{}", constant)
             }
             RValue::Local(i) => write!(f, "local_{}", i),
             RValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
             RValue::StaticField { field_ref } => {
-                let field = unit.field_refs.get(&field_ref).unwrap();
-                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                let field = &unit.field_refs[&field_ref];
+                let class = &unit.class_refs[&field.class_ref];
                 write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
             }
             RValue::InstanceField { object_stack_index, field_ref } => {
-                let field = unit.field_refs.get(&field_ref).unwrap();
-                let class = &unit.class_refs.get(&field.class_ref).unwrap();
+                let field = &unit.field_refs[&field_ref];
+                let class = &unit.class_refs[&field.class_ref];
                 write!(f,
                        "(stack[-{}]: {}).{}: {}",
                        object_stack_index + 1,
@@ -343,8 +343,8 @@ impl Invoke {
                 index
             }
         };
-        let method_ref = unit.method_refs.get(&index).unwrap();
-        let class = &unit.class_refs.get(&method_ref.class_ref).unwrap().0;
+        let method_ref = &unit.method_refs[&index];
+        let class = &unit.class_refs[&method_ref.class_ref].0;
         write!(f,
                " {}.{}: {}",
                class,
@@ -430,4 +430,3 @@ impl Display for BinaryOp {
                })
     }
 }
-

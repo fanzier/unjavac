@@ -3,7 +3,7 @@ pub use super::compilation_unit::*;
 pub use super::disassemble::*;
 use std::collections::HashMap;
 
-pub fn transform(class_file: ClassFile) -> CompilationUnit<Code> {
+pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
     let mut unit = CompilationUnit {
         typ: if class_file.access_flags.contains(ACC_INTERFACE) {
             UnitType::Interface
@@ -23,8 +23,8 @@ pub fn transform(class_file: ClassFile) -> CompilationUnit<Code> {
         name_refs: HashMap::new(),
     };
     unit.modifiers = class_flags_to_modifiers(&class_file.access_flags);
-    process_constant_pool(&mut unit, class_file.constant_pool);
-    unit.name = unit.class_refs.get(&class_file.this_class).unwrap().0.to_owned();
+    process_constant_pool(&mut unit, &class_file.constant_pool);
+    unit.name = unit.class_refs[&class_file.this_class].0.to_owned();
     process_methods(&mut unit, &class_file.methods);
     unit
 }
@@ -52,7 +52,7 @@ fn class_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     modifiers
 }
 
-fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: ConstantPool) {
+fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &ConstantPool) {
     for (index, constant) in constant_pool.constants.iter().enumerate() {
         let index = index as u16 + 1; // plus one because of weird indexing in the JVM spec
         match *constant {
@@ -107,7 +107,7 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: Consta
             ConstantInfo::NameAndType { name_index, descriptor_index } => {
                 let name = constant_pool.lookup_string(name_index).to_owned();
                 let descriptor_string = constant_pool.lookup_string(descriptor_index);
-                let descriptor = if descriptor_string.chars().next() == Some('(') {
+                let descriptor = if descriptor_string.starts_with('(') {
                     Descriptor::Signature(descriptor_to_signature(descriptor_string))
                 } else {
                     Descriptor::Type(descriptor_to_type(&mut descriptor_string.chars()))
@@ -124,7 +124,7 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: Consta
 
 fn process_methods(unit: &mut CompilationUnit<Code>, methods: &[MethodInfo]) {
     for method in methods {
-        let transformed = transform_method(&unit, &method);
+        let transformed = transform_method(unit, method);
         unit.declarations.push(transformed);
     }
 }
@@ -135,17 +135,18 @@ fn transform_method<C>(unit: &CompilationUnit<C>, method: &MethodInfo) -> Declar
         let name = unit.lookup_string(attribute.name_index);
         if name == "Code" {
             let code_attribute = parse_code_attribute(&attribute.info).unwrap();
-            let disassembly = disassemble(code_attribute);
+            let disassembly = disassemble(&code_attribute);
             code = Some(disassembly);
             break;
         }
     }
     Declaration::Method(Method {
-        modifiers: method_flags_to_modifiers(&method.access_flags),
-        name: unit.lookup_string(method.name_index).to_owned(),
-        signature: descriptor_to_signature(unit.lookup_string(method.descriptor_index)),
-        code: code,
-    })
+                            modifiers: method_flags_to_modifiers(&method.access_flags),
+                            name: unit.lookup_string(method.name_index).to_owned(),
+                            signature:
+                                descriptor_to_signature(unit.lookup_string(method.descriptor_index)),
+                            code: code,
+                        })
 }
 
 fn method_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {

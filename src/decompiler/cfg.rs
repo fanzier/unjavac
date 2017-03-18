@@ -71,7 +71,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
     let mut bb_starts = HashSet::new();
     bb_starts.insert(0);
     for &(pc, ref instr) in &instrs {
-        let next_pc = pc_to_index.get(&pc).unwrap() + 1;
+        let next_pc = pc_to_index[&pc] + 1;
         let next_pc = if next_pc < instrs.len() {
             Some(next_pc)
         } else {
@@ -84,7 +84,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
                     bb_starts.insert(next_pc);
                 }
                 // branch address starts a block:
-                bb_starts.insert(*pc_to_index.get(&address).unwrap());
+                bb_starts.insert(pc_to_index[&address]);
             }
             Instruction::Return => {
                 // next instruction starts a block:
@@ -110,7 +110,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
 
     let mut pc_to_bb_id = HashMap::new();
     for (i, &start_index) in bb_starts.iter().enumerate() {
-        let start_pc = index_to_pc.get(&start_index).unwrap();
+        let start_pc = index_to_pc[&start_index];
         pc_to_bb_id.insert(start_pc, i);
     }
 
@@ -125,7 +125,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
                     edges.push((block_id, block_id + 1, false));
                     terminator = condition;
                 }
-                edges.push((block_id, *pc_to_bb_id.get(&address).unwrap(), true));
+                edges.push((block_id, pc_to_bb_id[&address], true));
                 delete_last = true;
             }
             Instruction::Return => {}
@@ -155,4 +155,3 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
     }
     cfg
 }
-

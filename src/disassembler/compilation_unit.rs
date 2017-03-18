@@ -18,7 +18,7 @@ pub struct CompilationUnit<C> {
 
 impl<C> CompilationUnit<C> {
     pub fn lookup_string(&self, index: u16) -> &str {
-        self.string_constants.get(&index).unwrap()
+        &self.string_constants[&index]
     }
 }
 
@@ -47,7 +47,7 @@ pub enum Modifier {
 #[derive(Debug)]
 pub enum Declaration<C> {
     Field(Field),
-    Method(Method<C>)
+    Method(Method<C>),
 }
 
 #[derive(Debug)]

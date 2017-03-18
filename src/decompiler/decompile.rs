@@ -5,7 +5,10 @@ pub use decompiler::passes::*;
 pub fn decompile(unit: CompilationUnit<Code>) {
     for declaration in unit.declarations {
         match declaration {
-            Declaration::Method (Method { modifiers: _, name, signature, code: Some(code) }) => {
+            Declaration::Method(Method { modifiers: _modifiers,
+                                         name,
+                                         signature,
+                                         code: Some(code) }) => {
                 println!("{}: {}:", name, signature);
                 let cfg = build_cfg(code);
                 println!("{}", cfg);

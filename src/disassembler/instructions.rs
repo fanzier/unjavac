@@ -42,7 +42,6 @@ pub fn decode_instruction<I>(opcode: u8, pc: u16, iter: &mut I) -> Instruction
         0x94...0x98 => unimplemented!(), // comparison (arithmetic)
         0x99...0xab => Jump(decode_jump(opcode, pc, iter)), // control flow
         0xac...0xb1 => Return,
-        0xb2...0xb5 => Cpy(decode_store(opcode, iter)), // get/put field
         0xb6...0xba => Invoke(decode_invoke(opcode, iter)),
         0xbb...0xbe => unimplemented!(), // object manip
         0xbf => Throw,

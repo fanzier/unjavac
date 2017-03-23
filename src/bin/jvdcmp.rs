@@ -24,8 +24,8 @@ DISASSEMBLY:
              compilation_unit);
     println!(r#"
 DISASSEMBLY PRETTY-PRINTED:
-============
+===========================
 {}"#,
              compilation_unit);
-    decompile(compilation_unit);
+    decompile(compilation_unit, true);
 }

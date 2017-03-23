@@ -1,4 +1,5 @@
 pub use super::compilation_unit::*;
+pub use std::ops::Range;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Kind {
@@ -12,10 +13,11 @@ pub enum Kind {
     A, // reference
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Instruction {
     Nop,
-    Cpy(Cpy),
+    Load(RValue),
+    Store(LValue),
     Arithm(Arithm),
     TypeConv(TypeConv),
     ObjManip(ObjManip),
@@ -23,7 +25,7 @@ pub enum Instruction {
     Jump(Jump),
     Invoke(Invoke),
     Throw,
-    Return,
+    Return(Option<()>),
     Synchronized(Synchronized),
 }
 
@@ -34,14 +36,15 @@ pub fn decode_instruction<I>(opcode: u8, pc: u16, iter: &mut I) -> Instruction
     println!("Decoding opcode 0x{:x}.", opcode);
     match opcode {
         0x00 => Nop,
-        0x01...0x35 | 0xb2 | 0xb4 => Cpy(decode_load(opcode, iter)),
-        0x36...0x56 | 0xb3 | 0xb5 => Cpy(decode_store(opcode, iter)),
+        0x01...0x35 | 0xb2 | 0xb4 => Load(decode_load(opcode, iter)),
+        0x36...0x56 | 0xb3 | 0xb5 => Store(decode_store(opcode, iter)),
         0x57...0x5f => unimplemented!(), // stack management
         0x60...0x84 => Arithm(decode_arithm(opcode, iter)), // arithmetic
         0x85...0x93 => unimplemented!(), // type conversion
         0x94...0x98 => unimplemented!(), // comparison (arithmetic)
         0x99...0xab => Jump(decode_jump(opcode, pc, iter)), // control flow
-        0xac...0xb1 => Return,
+        0xac...0xb0 => Return(Some(())),
+        0xb1 => Return(None),
         0xb6...0xba => Invoke(decode_invoke(opcode, iter)),
         0xbb...0xbe => unimplemented!(), // object manip
         0xbf => Throw,
@@ -59,69 +62,60 @@ pub fn read_u16_index<I: Iterator<Item = u8>>(iter: &mut I) -> u16 {
     (index1 as u16) << 8 | index2 as u16
 }
 
-#[derive(Debug)]
-pub struct Cpy {
-    pub to: LValue,
-    pub from: RValue,
-}
+#[derive(Clone, Debug)]
+pub struct Store(pub LValue);
 
-#[derive(Debug)]
+/// ID of a variable on the stack.
+/// If negative (-i), it means the element stack[-i] from the top, i.e. stack[-1] is the top.
+/// If positive (i), it means that the variable introduced for this stack location has index i.
+pub type StackVarId = isize;
+
+#[derive(Clone, Debug)]
 pub enum LValue {
-    PushStack,
     Local(usize),
-    Stack(usize), // Stack(i): i-th element from top of stack, i.e. Stack(0) is top of stack
+    Stack(StackVarId),
     StaticField { field_ref: u16 },
     InstanceField {
-        object_stack_index: usize,
+        object_stack_index: StackVarId,
         field_ref: u16,
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum RValue {
     Constant(JavaConstant),
     ConstantRef { const_ref: u16 },
-    Local(usize),
-    Stack(usize), // Stack(i): i-th element from top of stack, i.e. Stack(0) is top of stack
-    StaticField { field_ref: u16 },
-    InstanceField {
-        object_stack_index: usize,
-        field_ref: u16,
-    },
+    LValue(LValue),
 }
 
-pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Cpy {
-    let origin = match opcode {
+pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> RValue {
+    match opcode {
         0x02...0x08 => RValue::Constant(JavaConstant::Integer(opcode as i32 - 0x03)),
         0x12 => {
             let index = iter.next().unwrap();
             RValue::ConstantRef { const_ref: index as u16 }
         }
-        0x1a...0x1d => RValue::Local((opcode - 0x1a) as usize),
-        0x2a...0x2d => RValue::Local((opcode - 0x2a) as usize),
+        0x1a...0x1d => RValue::LValue(LValue::Local((opcode - 0x1a) as usize)),
+        0x2a...0x2d => RValue::LValue(LValue::Local((opcode - 0x2a) as usize)),
         0xb2 => {
             //getstatic
             let index = read_u16_index(iter);
-            RValue::StaticField { field_ref: index }
+            RValue::LValue(LValue::StaticField { field_ref: index })
         }
         0xb4 => {
             //getfield
             let index = read_u16_index(iter);
-            RValue::InstanceField {
-                object_stack_index: 0,
-                field_ref: index,
-            }
+            RValue::LValue(LValue::InstanceField {
+                               object_stack_index: -1,
+                               field_ref: index,
+                           })
         }
         _ => unimplemented!(),
-    };
-    Cpy {
-        to: LValue::PushStack,
-        from: origin,
     }
 }
 
-pub fn decode_store<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Cpy {
-    let target = match opcode {
+pub fn decode_store<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> LValue {
+    match opcode {
         0x3b...0x3e => LValue::Local((opcode - 0x3b) as usize),
         0xb3 => {
             // putstatic
@@ -132,23 +126,19 @@ pub fn decode_store<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Cpy {
             // putfield
             let index = read_u16_index(iter);
             LValue::InstanceField {
-                object_stack_index: 1,
+                object_stack_index: -2,
                 field_ref: index,
             }
         }
         _ => unimplemented!(),
-    };
-    Cpy {
-        to: target,
-        from: RValue::Stack(0),
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Arithm {
     UnaryOp(UnaryOp),
     BinaryOp(BinaryOp),
-    IncreaseLocal { local_index: u8, increase: u8 },
+    IncreaseLocal { local_index: u8, increase: i8 },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -193,23 +183,23 @@ pub fn decode_arithm<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Arithm
             let increase = iter.next().unwrap();
             IncreaseLocal {
                 local_index: index,
-                increase: increase,
+                increase: increase as i8,
             }
         }
         _ => unreachable!(),
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum TypeConv {}
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum ObjManip {}
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum StackManage {}
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Jump {
     pub address: u16,
     pub condition: Option<JumpCondition>,
@@ -222,7 +212,7 @@ pub enum JumpCondition {
     CmpRef(Ordering),
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash)]
 pub enum Ordering {
     EQ,
     NE,
@@ -263,23 +253,32 @@ pub fn decode_jump<I: Iterator<Item = u8>>(opcode: u8, pc: u16, iter: &mut I) ->
     }
 }
 
-#[derive(Debug)]
-pub enum Invoke {
-    Special(u16),
-    Virtual(u16),
-    Static(u16),
+#[derive(Copy, Clone, Debug)]
+pub struct Invoke {
+    pub method_index: u16,
+    pub kind: InvokeKind,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum InvokeKind {
+    Virtual,
+    Special,
+    Static,
 }
 
 pub fn decode_invoke<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> Invoke {
-    use self::Invoke::*;
     let index = read_u16_index(iter);
-    match opcode {
-        0xb6 => Virtual(index),
-        0xb7 => Special(index),
-        0xb8 => Static(index),
+    let kind = match opcode {
+        0xb6 => InvokeKind::Virtual,
+        0xb7 => InvokeKind::Special,
+        0xb8 => InvokeKind::Static,
         _ => unimplemented!(),
+    };
+    Invoke {
+        method_index: index,
+        kind: kind,
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Synchronized {}

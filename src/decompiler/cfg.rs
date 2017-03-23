@@ -1,8 +1,9 @@
 pub use petgraph::*;
 pub use petgraph::graph::*;
 pub use petgraph::visit::*;
-use super::super::disassembler::compilation_unit::*;
-use super::super::disassembler::instructions::*;
+use disassembler::compilation_unit::*;
+use disassembler::instructions::*;
+use disassembler::display::ExtDisplay;
 use std::fmt::{Display, Formatter, Result};
 
 type Label = u32;
@@ -10,6 +11,32 @@ type Label = u32;
 #[derive(Debug)]
 pub struct Cfg<Stmt, Cond> {
     pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
+}
+
+impl<Stmt: Display, Cond: Display> ExtDisplay for Cfg<Stmt, Cond> {
+    fn fmt<C>(&self, f: &mut Formatter, _: &CompilationUnit<C>, _: usize) -> Result {
+        for node_ref in self.graph.node_references() {
+            let node_id = node_ref.id();
+            writeln!(f, "#{}:", node_id.index())?;
+            write!(f, "{}", node_ref.weight())?;
+            let mut edge_refs =
+                self.graph.edges_directed(node_id, Direction::Outgoing).collect::<Vec<_>>();
+            edge_refs.sort_by_key(|&e| e.weight());
+            if edge_refs.len() == 1 {
+                let edge_ref = edge_refs[0];
+                writeln!(f, "goto #{}", edge_ref.target().index())?;
+            } else {
+                for edge_ref in edge_refs {
+                    writeln!(f,
+                             "  {} => goto #{}",
+                             edge_ref.weight(),
+                             edge_ref.target().index())?;
+                }
+            }
+            writeln!(f, "")?;
+        }
+        Ok(())
+    }
 }
 
 impl<Stmt: Display, Cond: Display> Display for Cfg<Stmt, Cond> {
@@ -38,10 +65,19 @@ impl<Stmt: Display, Cond: Display> Display for Cfg<Stmt, Cond> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BasicBlock<Stmt, Cond> {
     pub stmts: Vec<Stmt>,
     pub terminator: Option<Cond>,
+}
+
+impl<Stmt, Cond> Default for BasicBlock<Stmt, Cond> {
+    fn default() -> BasicBlock<Stmt, Cond> {
+        BasicBlock {
+            stmts: vec![],
+            terminator: None,
+        }
+    }
 }
 
 impl<Stmt: Display, Cond: Display> Display for BasicBlock<Stmt, Cond> {
@@ -86,7 +122,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
                 // branch address starts a block:
                 bb_starts.insert(pc_to_index[&address]);
             }
-            Instruction::Return => {
+            Instruction::Return(_) => {
                 // next instruction starts a block:
                 if let Some(next_pc) = next_pc {
                     bb_starts.insert(next_pc);
@@ -128,7 +164,7 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
                 edges.push((block_id, pc_to_bb_id[&address], true));
                 delete_last = true;
             }
-            Instruction::Return => {}
+            Instruction::Return(_) => {}
             _ => {
                 edges.push((block_id, block_id + 1, false));
             }

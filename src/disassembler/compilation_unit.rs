@@ -7,7 +7,35 @@ pub struct CompilationUnit<C> {
     pub typ: UnitType,
     pub modifiers: Vec<Modifier>,
     pub name: String,
+    pub metadata: Metadata,
     pub declarations: Vec<Declaration<C>>,
+}
+
+impl<C> CompilationUnit<C> {
+    pub fn lookup_string(&self, index: u16) -> &str {
+        &self.metadata.string_constants[&index]
+    }
+
+    pub fn map<F, D>(mut self, mut f: F) -> CompilationUnit<D>
+        where F: FnMut(C, &Metadata) -> D
+    {
+        let declarations = {
+            let declarations = &mut self.declarations;
+            let metadata = &self.metadata;
+            declarations.drain(..).map(|d| d.map(|c| f(c, metadata))).collect::<Vec<_>>()
+        };
+        CompilationUnit {
+            typ: self.typ,
+            modifiers: self.modifiers,
+            name: self.name,
+            declarations: declarations,
+            metadata: self.metadata,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Metadata {
     pub java_constants: HashMap<u16, JavaConstant>,
     pub string_constants: HashMap<u16, String>,
     pub class_refs: HashMap<u16, ClassRef>,
@@ -16,9 +44,9 @@ pub struct CompilationUnit<C> {
     pub name_refs: HashMap<u16, NameRef>,
 }
 
-impl<C> CompilationUnit<C> {
-    pub fn lookup_string(&self, index: u16) -> &str {
-        &self.string_constants[&index]
+impl Metadata {
+    pub fn new() -> Metadata {
+        Metadata::default()
     }
 }
 
@@ -29,7 +57,7 @@ pub enum UnitType {
     Enum,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Hash)]
 pub enum Modifier {
     Public,
     Protected,
@@ -50,6 +78,24 @@ pub enum Declaration<C> {
     Method(Method<C>),
 }
 
+impl<C> Declaration<C> {
+    pub fn map<F, D>(self, f: F) -> Declaration<D>
+        where F: FnMut(C) -> D
+    {
+        match self {
+            Declaration::Field(f) => Declaration::Field(f),
+            Declaration::Method(Method { modifiers, name, signature, code }) => {
+                Declaration::Method(Method {
+                                        modifiers: modifiers,
+                                        name: name,
+                                        signature: signature,
+                                        code: code.map(f),
+                                    })
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Field {
     pub modifiers: Vec<Modifier>,
@@ -65,7 +111,7 @@ pub struct Method<C> {
     pub code: Option<C>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub enum Type {
     Void,
     Boolean,
@@ -80,48 +126,49 @@ pub enum Type {
     Reference(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct Signature {
     pub parameters: Vec<Type>,
     pub return_type: Type,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub enum Descriptor {
     Signature(Signature),
     Type(Type),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub enum JavaConstant {
     NullReference,
     Byte(i8),
     Short(i16),
     Integer(i32),
     Long(i64),
-    Float(f32),
-    Double(f64),
+    // TODO: Add these back (requires custom Hash impl):
+    // Float(f32),
+    // Double(f64),
     String(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct ClassRef(pub String);
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct FieldRef {
     pub class_ref: u16,
     pub name: String,
     pub typ: Type,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct MethodRef {
     pub class_ref: u16,
     pub name: String,
     pub signature: Signature,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Hash)]
 pub struct NameRef {
     pub name: String,
     pub typ: Descriptor,

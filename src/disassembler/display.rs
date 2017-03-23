@@ -17,7 +17,7 @@ pub trait ExtDisplay {
     fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>, indent: usize) -> Result;
 }
 
-impl Display for CompilationUnit<Code> {
+impl<C: ExtDisplay> Display for CompilationUnit<C> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         Modifier::fmt_modifiers(f, &self.modifiers)?;
         write!(f, "{} {} {{", self.typ, self.name)?;
@@ -118,12 +118,11 @@ impl<C: ExtDisplay> ExtDisplay for Method<C> {
         Modifier::fmt_modifiers(f, modifiers)?;
         write!(f, "{}: {}", name, signature)?;
         if let Some(ref code) = *code {
-            write!(f, " {{")?;
+            writeln!(f, " {{")?;
             {
                 let indent = indent + 4;
                 code.fmt(f, unit, indent)?;
             }
-            newline(f, indent)?;
             writeln!(f, "}}")
         } else {
             writeln!(f, ";")
@@ -134,9 +133,9 @@ impl<C: ExtDisplay> ExtDisplay for Method<C> {
 impl ExtDisplay for Code {
     fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
         for &(pc, ref instruction) in &self.instructions {
-            newline(f, indent)?;
             write!(f, "{:#6X}: ", pc)?;
             instruction.fmt(f, unit)?;
+            newline(f, indent)?;
         }
         Ok(())
     }
@@ -146,9 +145,18 @@ impl Instruction {
     pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         match *self {
             Instruction::Nop => write!(f, "nop"),
-            Instruction::Cpy(ref cpy) => cpy.fmt(f, unit),
+            Instruction::Load(ref rvalue) => {
+                write!(f, "load ")?;
+                rvalue.fmt(f, unit)
+            }
+            Instruction::Store(ref lvalue) => {
+                write!(f, "store ")?;
+                lvalue.fmt(f, unit)
+            }
             Instruction::Invoke(ref invoke) => invoke.fmt(f, unit),
-            Instruction::Return => write!(f, "return"),
+            Instruction::Return(val) => {
+                write!(f, "return {}", if val.is_some() { "value" } else { "void" })
+            }
             Instruction::Jump(ref jump) => write!(f, "{}", jump),
             Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
             _ => unimplemented!(),
@@ -160,9 +168,12 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Instruction::Nop => write!(f, "nop"),
-            Instruction::Cpy(ref cpy) => write!(f, "copy {}", cpy),
+            Instruction::Load(ref rvalue) => write!(f, "load {}", rvalue),
+            Instruction::Store(ref lvalue) => write!(f, "store {}", lvalue),
             Instruction::Invoke(ref invoke) => write!(f, "invoke {}", invoke),
-            Instruction::Return => write!(f, "return"),
+            Instruction::Return(val) => {
+                write!(f, "return {}", if val.is_some() { "value" } else { "void" })
+            }
             Instruction::Jump(ref jump) => write!(f, "{}", jump),
             Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
             _ => unimplemented!(),
@@ -196,38 +207,22 @@ impl Display for JavaConstant {
             JavaConstant::Short(i) => write!(f, "{}: short", i),
             JavaConstant::Integer(i) => write!(f, "{}: int", i),
             JavaConstant::Long(i) => write!(f, "{}: long", i),
-            JavaConstant::Float(d) => write!(f, "{}: float", d),
-            JavaConstant::Double(d) => write!(f, "{}: double", d),
+            // JavaConstant::Float(d) => write!(f, "{}: float", d),
+            // JavaConstant::Double(d) => write!(f, "{}: double", d),
             JavaConstant::String(ref s) => write!(f, r#""{}": String"#, s),
         }
-    }
-}
-
-impl Display for Cpy {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{} -> {}", self.from, self.to)
-    }
-}
-
-impl Cpy {
-    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
-        write!(f, "copy ")?;
-        self.from.fmt(f, unit)?;
-        write!(f, " -> ")?;
-        self.to.fmt(f, unit)
     }
 }
 
 impl Display for LValue {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            LValue::PushStack => write!(f, "push onto stack"),
             LValue::Local(i) => write!(f, "local_{}", i),
-            LValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            LValue::Stack(i) => write!(f, "stack[{}]", i),
             LValue::StaticField { field_ref } => write!(f, "static field {}", field_ref),
             LValue::InstanceField { object_stack_index, field_ref } => {
                 write!(f,
-                       " field {} of stack[-{}]",
+                       " field {} of stack[{}]",
                        field_ref,
                        object_stack_index + 1)
             }
@@ -238,20 +233,19 @@ impl Display for LValue {
 impl LValue {
     pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
         match *self {
-            LValue::PushStack => write!(f, "push onto stack"),
             LValue::Local(i) => write!(f, "local_{}", i),
-            LValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
+            LValue::Stack(i) => write!(f, "stack[{}]", i),
             LValue::StaticField { field_ref } => {
-                let field = &unit.field_refs[&field_ref];
-                let class = &unit.class_refs[&field.class_ref];
+                let field = &unit.metadata.field_refs[&field_ref];
+                let class = &unit.metadata.class_refs[&field.class_ref];
                 write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
             }
             LValue::InstanceField { object_stack_index, field_ref } => {
-                let field = &unit.field_refs[&field_ref];
-                let class = &unit.class_refs[&field.class_ref];
+                let field = &unit.metadata.field_refs[&field_ref];
+                let class = &unit.metadata.class_refs[&field.class_ref];
                 write!(f,
-                       "(stack[-{}]: {}).{}: {}",
-                       object_stack_index + 1,
+                       "(stack[{}]: {}).{}: {}",
+                       object_stack_index,
                        &class.0,
                        field.name,
                        field.typ)
@@ -265,15 +259,7 @@ impl Display for RValue {
         match *self {
             RValue::Constant(ref constant) => write!(f, "{}", constant),
             RValue::ConstantRef { const_ref } => write!(f, "constant #{}", const_ref),
-            RValue::Local(i) => write!(f, "local_{}", i),
-            RValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
-            RValue::StaticField { field_ref } => write!(f, "static field {}", field_ref),
-            RValue::InstanceField { object_stack_index, field_ref } => {
-                write!(f,
-                       " field {} of stack[-{}]",
-                       field_ref,
-                       object_stack_index + 1)
-            }
+            RValue::LValue(ref lvalue) => write!(f, "{}", lvalue),
         }
     }
 }
@@ -283,68 +269,34 @@ impl RValue {
         match *self {
             RValue::Constant(ref constant) => write!(f, "{}", constant),
             RValue::ConstantRef { const_ref } => {
-                let constant = &unit.java_constants[&const_ref];
+                let constant = &unit.metadata.java_constants[&const_ref];
                 write!(f, "{}", constant)
             }
-            RValue::Local(i) => write!(f, "local_{}", i),
-            RValue::Stack(i) => write!(f, "stack[-{}]", i + 1),
-            RValue::StaticField { field_ref } => {
-                let field = &unit.field_refs[&field_ref];
-                let class = &unit.class_refs[&field.class_ref];
-                write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
-            }
-            RValue::InstanceField { object_stack_index, field_ref } => {
-                let field = &unit.field_refs[&field_ref];
-                let class = &unit.class_refs[&field.class_ref];
-                write!(f,
-                       "(stack[-{}]: {}).{}: {}",
-                       object_stack_index + 1,
-                       &class.0,
-                       field.name,
-                       field.typ)
-            }
+            RValue::LValue(ref lvalue) => write!(f, "{}", lvalue),
         }
     }
 }
 
 impl Display for Invoke {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let index = match *self {
-            Invoke::Virtual(index) => {
-                write!(f, "invoke virtual")?;
-                index
-            }
-            Invoke::Special(index) => {
-                write!(f, "invoke special")?;
-                index
-            }
-            Invoke::Static(index) => {
-                write!(f, "invoke static")?;
-                index
-            }
+        match self.kind {
+            InvokeKind::Virtual => write!(f, "virtual")?,
+            InvokeKind::Special => write!(f, "special")?,
+            InvokeKind::Static => write!(f, "static")?,
         };
-        write!(f, " {}", index)
+        write!(f, " {}", self.method_index)
     }
 }
 
 impl Invoke {
     pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
-        let index = match *self {
-            Invoke::Virtual(index) => {
-                write!(f, "invoke virtual")?;
-                index
-            }
-            Invoke::Special(index) => {
-                write!(f, "invoke special")?;
-                index
-            }
-            Invoke::Static(index) => {
-                write!(f, "invoke special")?;
-                index
-            }
+        match self.kind {
+            InvokeKind::Virtual => write!(f, "invoke virtual")?,
+            InvokeKind::Special => write!(f, "invoke special")?,
+            InvokeKind::Static => write!(f, "invoke static")?,
         };
-        let method_ref = &unit.method_refs[&index];
-        let class = &unit.class_refs[&method_ref.class_ref].0;
+        let method_ref = &unit.metadata.method_refs[&self.method_index];
+        let class = &unit.metadata.class_refs[&method_ref.class_ref].0;
         write!(f,
                " {}.{}: {}",
                class,

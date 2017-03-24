@@ -54,7 +54,7 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &Const
                 unit.metadata.string_constants.insert(index, str.to_owned());
             }
             ConstantInfo::Integer(int) => {
-                unit.metadata.java_constants.insert(index, JavaConstant::Integer(int));
+                unit.metadata.literals.insert(index, Literal::Integer(int));
             }
             ConstantInfo::Class { name_index } => {
                 let name = constant_pool.lookup_string(name_index);
@@ -62,7 +62,7 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &Const
             }
             ConstantInfo::String { string_index } => {
                 let string = constant_pool.lookup_string(string_index);
-                unit.metadata.java_constants.insert(index, JavaConstant::String(string.to_owned()));
+                unit.metadata.literals.insert(index, Literal::String(string.to_owned()));
             }
             ConstantInfo::FieldRef { class_index, name_index } => {
                 let (name_index, descriptor_index) = match *constant_pool.lookup(name_index) {

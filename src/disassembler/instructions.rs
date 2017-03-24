@@ -83,14 +83,14 @@ pub enum LValue {
 
 #[derive(Clone, Debug)]
 pub enum RValue {
-    Constant(JavaConstant),
+    Constant(Literal),
     ConstantRef { const_ref: u16 },
     LValue(LValue),
 }
 
 pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> RValue {
     match opcode {
-        0x02...0x08 => RValue::Constant(JavaConstant::Integer(opcode as i32 - 0x03)),
+        0x02...0x08 => RValue::Constant(Literal::Integer(opcode as i32 - 0x03)),
         0x12 => {
             let index = iter.next().unwrap();
             RValue::ConstantRef { const_ref: index as u16 }

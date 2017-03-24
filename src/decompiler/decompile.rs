@@ -5,7 +5,7 @@ pub use decompiler::types::*;
 
 pub fn decompile(unit: CompilationUnit<Code>,
                  verbose: bool)
-                 -> CompilationUnit<Cfg<Statement, Expr>> {
+                 -> CompilationUnit<Cfg<Statement, RecExpr>> {
     let unit = unit.map(|c, _| build_cfg(c));
     if verbose {
         println!(r#"

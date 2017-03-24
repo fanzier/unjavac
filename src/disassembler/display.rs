@@ -199,17 +199,17 @@ impl Display for Kind {
     }
 }
 
-impl Display for JavaConstant {
+impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
-            JavaConstant::NullReference => write!(f, "null"),
-            JavaConstant::Byte(i) => write!(f, "{}: byte", i),
-            JavaConstant::Short(i) => write!(f, "{}: short", i),
-            JavaConstant::Integer(i) => write!(f, "{}: int", i),
-            JavaConstant::Long(i) => write!(f, "{}: long", i),
-            // JavaConstant::Float(d) => write!(f, "{}: float", d),
-            // JavaConstant::Double(d) => write!(f, "{}: double", d),
-            JavaConstant::String(ref s) => write!(f, r#""{}": String"#, s),
+            Literal::NullReference => write!(f, "null"),
+            Literal::Byte(i) => write!(f, "{}: byte", i),
+            Literal::Short(i) => write!(f, "{}: short", i),
+            Literal::Integer(i) => write!(f, "{}: int", i),
+            Literal::Long(i) => write!(f, "{}: long", i),
+            // Literal::Float(d) => write!(f, "{}: float", d),
+            // Literal::Double(d) => write!(f, "{}: double", d),
+            Literal::String(ref s) => write!(f, r#""{}": String"#, s),
         }
     }
 }
@@ -269,7 +269,7 @@ impl RValue {
         match *self {
             RValue::Constant(ref constant) => write!(f, "{}", constant),
             RValue::ConstantRef { const_ref } => {
-                let constant = &unit.metadata.java_constants[&const_ref];
+                let constant = &unit.metadata.literals[&const_ref];
                 write!(f, "{}", constant)
             }
             RValue::LValue(ref lvalue) => write!(f, "{}", lvalue),

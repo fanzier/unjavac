@@ -36,7 +36,7 @@ impl<C> CompilationUnit<C> {
 
 #[derive(Debug, Default)]
 pub struct Metadata {
-    pub java_constants: HashMap<u16, JavaConstant>,
+    pub literals: HashMap<u16, Literal>,
     pub string_constants: HashMap<u16, String>,
     pub class_refs: HashMap<u16, ClassRef>,
     pub field_refs: HashMap<u16, FieldRef>,
@@ -139,7 +139,7 @@ pub enum Descriptor {
 }
 
 #[derive(Clone, Debug, Hash)]
-pub enum JavaConstant {
+pub enum Literal {
     NullReference,
     Byte(i8),
     Short(i16),

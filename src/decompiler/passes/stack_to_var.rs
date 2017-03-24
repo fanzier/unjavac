@@ -53,20 +53,20 @@ impl StackLayout {
             Instruction::Load(ref rvalue) => {
                 let expr = self.make_stack_vars_rvalue(rvalue, metadata);
                 let top = self.push();
-                vec![Statement::Expr(Expr::Assign {
-                                         to: Box::new(Assignable::Variable(self.stack(top), 0)),
-                                         op: None,
-                                         from: Box::new(expr),
-                                     })]
+                vec![stmt_expr(Expr::Assign {
+                                   to: Box::new(Assignable::Variable(self.stack(top), 0)),
+                                   op: None,
+                                   from: rec_expr(expr),
+                               })]
             }
             Instruction::Store(ref to) => {
                 let assignable = self.make_stack_vars_lvalue(to, metadata);
                 let top = self.pop();
-                vec![Statement::Expr(Expr::Assign {
-                                         to: Box::new(assignable),
-                                         op: None,
-                                         from: Box::new(mk_variable(self.stack(top))),
-                                     })]
+                vec![stmt_expr(Expr::Assign {
+                                   to: Box::new(assignable),
+                                   op: None,
+                                   from: mk_variable(self.stack(top)),
+                               })]
             }
             Instruction::Arithm(ref arithm) => {
                 match *arithm {
@@ -74,37 +74,37 @@ impl StackLayout {
                         let v = self.pop();
                         let res = self.push();
                         let to = Box::new(Assignable::Variable(self.stack(res), 0));
-                        let from = Box::new(Expr::UnaryOp(convert_un_op(op),
-                                                          Box::new(mk_variable(self.stack(v)))));
-                        vec![Statement::Expr(Expr::Assign {
-                                                 to: to,
-                                                 op: None,
-                                                 from: from,
-                                             })]
+                        let from = rec_expr(Expr::UnaryOp(convert_un_op(op),
+                                                          mk_variable(self.stack(v))));
+                        vec![stmt_expr(Expr::Assign {
+                                           to: to,
+                                           op: None,
+                                           from: from,
+                                       })]
                     }
                     Arithm::BinaryOp(op) => {
                         let w = self.pop();
                         let v = self.pop();
                         let res = self.push();
                         let to = Box::new(Assignable::Variable(self.stack(res), 0));
-                        let from = Box::new(Expr::BinaryOp(convert_bin_op(op),
-                                                           Box::new(mk_variable(self.stack(v))),
-                                                           Box::new(mk_variable(self.stack(w)))));
-                        vec![Statement::Expr(Expr::Assign {
-                                                 to: to,
-                                                 op: None,
-                                                 from: from,
-                                             })]
+                        let from = rec_expr(Expr::BinaryOp(convert_bin_op(op),
+                                                           mk_variable(self.stack(v)),
+                                                           mk_variable(self.stack(w))));
+                        vec![stmt_expr(Expr::Assign {
+                                           to: to,
+                                           op: None,
+                                           from: from,
+                                       })]
                     }
                     Arithm::IncreaseLocal { local_index, increase } => {
                         let to = Box::new(Assignable::Variable(self.local(local_index as usize),
                                                                0));
-                        let from = Box::new(Expr::Literal(JavaConstant::Integer(increase as i32)));
-                        vec![Statement::Expr(Expr::Assign {
-                                                 to: to,
-                                                 op: Some(BinOp::Add),
-                                                 from: from,
-                                             })]
+                        let from = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
+                        vec![stmt_expr(Expr::Assign {
+                                           to: to,
+                                           op: Some(BinOp::Add),
+                                           from: from,
+                                       })]
                     }
                 }
             }
@@ -121,7 +121,7 @@ impl StackLayout {
                 let this_object = match kind {
                     InvokeKind::Special | InvokeKind::Virtual => {
                         let top = self.pop();
-                        Some(Box::new(mk_variable(self.stack(top))))
+                        Some(mk_variable(self.stack(top)))
                     }
                     _ => None,
                 };
@@ -132,15 +132,14 @@ impl StackLayout {
                                                    .map(|i| mk_variable(self.stack(i)))
                                                    .collect::<Vec<_>>());
                 if method_ref.signature.return_type == Type::Void {
-                    vec![Statement::Expr(method_call)]
+                    vec![stmt_expr(method_call)]
                 } else {
                     let result = self.push();
-                    vec![Statement::Expr(Expr::Assign {
-                                             from: Box::new(method_call),
-                                             op: None,
-                                             to: Box::new(Assignable::Variable(self.stack(result),
-                                                                               0)),
-                                         })]
+                    vec![stmt_expr(Expr::Assign {
+                                       from: rec_expr(method_call),
+                                       op: None,
+                                       to: Box::new(Assignable::Variable(self.stack(result), 0)),
+                                   })]
                 }
             }
             Instruction::Throw => unimplemented!(),
@@ -155,11 +154,11 @@ impl StackLayout {
         }
     }
 
-    fn make_stack_vars_rvalue(&mut self, expr: &RValue, metadata: &Metadata) -> Expr {
+    fn make_stack_vars_rvalue(&mut self, expr: &RValue, metadata: &Metadata) -> Expr<RecExpr> {
         match *expr {
             RValue::Constant(ref literal) => Expr::Literal(literal.clone()),
             RValue::ConstantRef { const_ref } => {
-                Expr::Literal(metadata.java_constants[&const_ref].clone())
+                Expr::Literal(metadata.literals[&const_ref].clone())
             }
             RValue::LValue(ref lvalue) => {
                 Expr::Assignable(Box::new(self.make_stack_vars_lvalue(lvalue, metadata)))
@@ -191,7 +190,7 @@ impl StackLayout {
                 let index = self.get(object_stack_index);
                 remove += 1;
                 Assignable::Field {
-                    this: Some(Box::new(mk_variable(self.stack(index)))),
+                    this: Some(mk_variable(self.stack(index))),
                     class: class.clone(),
                     field: field.clone(),
                 }
@@ -201,21 +200,21 @@ impl StackLayout {
         result
     }
 
-    pub fn cond_to_expr(&mut self, cond: &JumpCondition) -> Expr {
+    pub fn cond_to_expr(&mut self, cond: &JumpCondition) -> Expr<RecExpr> {
         match *cond {
             JumpCondition::CmpZero(ord) => {
                 let v = self.pop();
                 Expr::BinaryOp(BinOp::Cmp(ord),
-                               Box::new(mk_variable(self.stack(v))),
-                               Box::new(Expr::Literal(JavaConstant::Integer(0))))
+                               mk_variable(self.stack(v)),
+                               rec_expr(Expr::Literal(Literal::Integer(0))))
             }
             JumpCondition::Cmp(ord) |
             JumpCondition::CmpRef(ord) => {
                 let w = self.pop();
                 let v = self.pop();
                 Expr::BinaryOp(BinOp::Cmp(ord),
-                               Box::new(mk_variable(self.stack(v))),
-                               Box::new(mk_variable(self.stack(w))))
+                               mk_variable(self.stack(v)),
+                               mk_variable(self.stack(w)))
             }
         }
     }
@@ -230,13 +229,13 @@ impl StackLayout {
 }
 
 pub fn stack_to_vars(unit: CompilationUnit<Cfg<Instruction, JumpCondition>>)
-                     -> CompilationUnit<Cfg<Statement, Expr>> {
+                     -> CompilationUnit<Cfg<Statement, RecExpr>> {
     unit.map(transform)
 }
 
 fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
              metadata: &Metadata)
-             -> Cfg<Statement, Expr> {
+             -> Cfg<Statement, RecExpr> {
     use petgraph::visit::Dfs;
     let mut stack_at_bb = vec![None; cfg.graph.node_count()];
     stack_at_bb[0] = Some(StackLayout::new());
@@ -251,7 +250,7 @@ fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
             for inst in &mut bb.stmts {
                 new_bb.stmts.append(&mut stack.execute(inst, metadata));
             }
-            new_bb.terminator = bb.terminator.map(|t| stack.cond_to_expr(&t));
+            new_bb.terminator = bb.terminator.map(|t| rec_expr(stack.cond_to_expr(&t)));
             new_bb
         };
         for w in cfg.graph.neighbors_directed(v, Direction::Outgoing) {

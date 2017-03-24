@@ -3,48 +3,51 @@ use std::fmt::*;
 
 type Ident = String;
 
+pub fn rec_expr(e: Expr<RecExpr>) -> RecExpr {
+    RecExpr(Box::new(e))
+}
+
 #[derive(Clone, Debug, Hash)]
-pub enum Expr {
-    Literal(JavaConstant),
+pub struct RecExpr(Box<Expr<RecExpr>>);
+
+#[derive(Clone, Debug, Hash)]
+pub enum Expr<E> {
+    Literal(Literal),
     Assignable(Box<Assignable>),
-    UnaryOp(UnOp, Box<Expr>),
-    BinaryOp(BinOp, Box<Expr>, Box<Expr>),
-    IfThenElse {
-        cond: Box<Expr>,
-        then: Box<Expr>,
-        els: Box<Expr>,
-    },
-    Invoke(Option<Box<Expr>>, MethodRef, ClassRef, Vec<Expr>),
+    UnaryOp(UnOp, E),
+    BinaryOp(BinOp, E, E),
+    IfThenElse { cond: E, then: E, els: E },
+    Invoke(Option<E>, MethodRef, ClassRef, Vec<E>),
     Assign {
         to: Box<Assignable>,
         op: Option<BinOp>,
-        from: Box<Expr>,
+        from: E,
     },
-    New { class: Type, args: Vec<Expr> },
+    New { class: Type, args: Vec<E> },
     This,
     Super,
     // TODO this(...), super(...)
 }
 
-impl Display for Expr {
+impl Display for RecExpr {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{:?}", self)
     }
 }
 
-pub fn mk_variable(id: Ident) -> Expr {
-    Expr::Assignable(Box::new(Assignable::Variable(id, 0)))
+pub fn mk_variable(id: Ident) -> RecExpr {
+    rec_expr(Expr::Assignable(Box::new(Assignable::Variable(id, 0))))
 }
 
 #[derive(Clone, Debug, Hash)]
 pub enum Assignable {
     Variable(Ident, usize),
     Field {
-        this: Option<Box<Expr>>,
+        this: Option<RecExpr>,
         class: ClassRef,
         field: FieldRef,
     },
-    ArrayAccess { array: Box<Expr>, index: Box<Expr> },
+    ArrayAccess { array: RecExpr, index: RecExpr },
 }
 
 #[derive(Copy, Clone, Debug, Hash)]
@@ -69,17 +72,21 @@ pub enum BinOp {
     Xor,
 }
 
+pub fn stmt_expr(e: Expr<RecExpr>) -> Statement {
+    Statement::Expr(rec_expr(e))
+}
+
 #[derive(Clone, Debug, Hash)]
 pub enum Statement {
-    Expr(Expr),
+    Expr(RecExpr),
     Block(Block),
     If {
-        cond: Expr,
+        cond: RecExpr,
         then: Block,
         els: Option<Block>,
     },
     While {
-        cond: Expr,
+        cond: RecExpr,
         body: Block,
         do_while: bool,
     },
@@ -87,9 +94,9 @@ pub enum Statement {
     Label { label: Ident, stmt: Box<Statement> },
     Break(Option<Ident>),
     Continue(Option<Ident>),
-    Return(Option<Expr>),
-    Throw(Expr),
-    Synchronized(Expr, Block),
+    Return(Option<RecExpr>),
+    Throw(RecExpr),
+    Synchronized(RecExpr, Block),
     Try {
         resources: Vec<LocalDecl>,
         block: Block,
@@ -111,16 +118,16 @@ pub struct Block(pub Vec<LocalDecl>, pub Vec<Statement>);
 pub struct LocalDecl {
     pub ident: Ident,
     pub typ: Type,
-    pub init: Option<Expr>,
+    pub init: Option<RecExpr>,
 }
 
 #[derive(Clone, Debug, Hash)]
 pub enum ForControl {
-    Iteration { elem: LocalDecl, container: Expr },
+    Iteration { elem: LocalDecl, container: RecExpr },
     General {
         init: LocalDecl,
-        cond: Expr,
-        update: Expr,
+        cond: RecExpr,
+        update: RecExpr,
     },
 }
 

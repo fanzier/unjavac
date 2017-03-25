@@ -5,6 +5,7 @@ use disassembler::compilation_unit::*;
 use disassembler::instructions::*;
 use disassembler::display::ExtDisplay;
 use std::fmt::{Display, Formatter, Result};
+use pretty::*;
 
 type Label = u32;
 
@@ -13,7 +14,7 @@ pub struct Cfg<Stmt, Cond> {
     pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
 }
 
-impl<Stmt: Display, Cond: Display> ExtDisplay for Cfg<Stmt, Cond> {
+impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> ExtDisplay for Cfg<Stmt, Cond> {
     fn fmt<C>(&self, f: &mut Formatter, _: &CompilationUnit<C>, _: usize) -> Result {
         for node_ref in self.graph.node_references() {
             let node_id = node_ref.id();
@@ -39,7 +40,7 @@ impl<Stmt: Display, Cond: Display> ExtDisplay for Cfg<Stmt, Cond> {
     }
 }
 
-impl<Stmt: Display, Cond: Display> Display for Cfg<Stmt, Cond> {
+impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> Display for Cfg<Stmt, Cond> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         for node_ref in self.graph.node_references() {
             let node_id = node_ref.id();
@@ -80,13 +81,13 @@ impl<Stmt, Cond> Default for BasicBlock<Stmt, Cond> {
     }
 }
 
-impl<Stmt: Display, Cond: Display> Display for BasicBlock<Stmt, Cond> {
+impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> Display for BasicBlock<Stmt, Cond> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         for stmt in &self.stmts {
-            writeln!(f, "{}", stmt)?;
+            writeln!(f, "{}", stmt.pretty().render_string(100))?;
         }
         if let Some(ref condition) = self.terminator {
-            writeln!(f, "if {}", condition)?;
+            writeln!(f, "if {}", condition.pretty().render_string(100))?;
         }
         Ok(())
     }

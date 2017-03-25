@@ -1,5 +1,6 @@
 pub use super::compilation_unit::*;
 use std::fmt::*;
+use pretty::*;
 
 fn do_indent(f: &mut Formatter, indent: usize) -> Result {
     for _ in 0..indent {
@@ -181,6 +182,13 @@ impl Display for Instruction {
     }
 }
 
+impl Pretty for Instruction {
+    type Extra = ();
+    fn pretty_with(&self, _: ()) -> Doc {
+        doc(format!("{}", self))
+    }
+}
+
 impl Display for Kind {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use self::Kind::*;
@@ -203,13 +211,13 @@ impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Literal::NullReference => write!(f, "null"),
-            Literal::Byte(i) => write!(f, "{}: byte", i),
-            Literal::Short(i) => write!(f, "{}: short", i),
-            Literal::Integer(i) => write!(f, "{}: int", i),
-            Literal::Long(i) => write!(f, "{}: long", i),
-            // Literal::Float(d) => write!(f, "{}: float", d),
-            // Literal::Double(d) => write!(f, "{}: double", d),
-            Literal::String(ref s) => write!(f, r#""{}": String"#, s),
+            Literal::Byte(i) => write!(f, "{}", i),
+            Literal::Short(i) => write!(f, "{}", i),
+            Literal::Integer(i) => write!(f, "{}", i),
+            Literal::Long(i) => write!(f, "{}L", i),
+            // Literal::Float(d) => write!(f, "{}f", d),
+            // Literal::Double(d) => write!(f, "{}d", d),
+            Literal::String(ref s) => write!(f, r#""{}""#, s),
         }
     }
 }
@@ -326,19 +334,29 @@ impl Display for JumpCondition {
     }
 }
 
+impl Pretty for JumpCondition {
+    type Extra = ();
+    fn pretty_with(&self, _: ()) -> Doc {
+        doc(format!("{}", self))
+    }
+}
+
+impl Ordering {
+    pub fn to_str(&self) -> &'static str {
+        match *self {
+            Ordering::EQ => "==",
+            Ordering::NE => "!=",
+            Ordering::LT => "<",
+            Ordering::GE => ">=",
+            Ordering::GT => ">",
+            Ordering::LE => "<=",
+        }
+    }
+}
+
 impl Display for Ordering {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        use self::Ordering::*;
-        write!(f,
-               "{}",
-               match *self {
-                   EQ => "==",
-                   NE => "!=",
-                   LT => "<",
-                   GE => ">=",
-                   GT => ">",
-                   LE => "<=",
-               })
+        write!(f, "{}", self.to_str())
     }
 }
 

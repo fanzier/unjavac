@@ -8,7 +8,13 @@ pub fn rec_expr(e: Expr<RecExpr>) -> RecExpr {
 }
 
 #[derive(Clone, Debug, Hash)]
-pub struct RecExpr(Box<Expr<RecExpr>>);
+pub struct RecExpr(pub Box<Expr<RecExpr>>);
+
+impl RecExpr {
+    pub fn inner(&self) -> &Expr<RecExpr> {
+        &self.0
+    }
+}
 
 #[derive(Clone, Debug, Hash)]
 pub enum Expr<E> {
@@ -53,7 +59,19 @@ pub enum Assignable {
 #[derive(Copy, Clone, Debug, Hash)]
 pub enum UnOp {
     Neg,
-    Not,
+    BitNot,
+    LogNot,
+}
+
+impl Display for UnOp {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let symbol = match *self {
+            UnOp::Neg => "-",
+            UnOp::BitNot => "~",
+            UnOp::LogNot => "!",
+        };
+        write!(f, "{}", symbol)
+    }
 }
 
 #[derive(Copy, Clone, Debug, Hash)]
@@ -67,9 +85,33 @@ pub enum BinOp {
     Shl,
     Shr,
     Ushr,
-    And,
-    Or,
-    Xor,
+    BitAnd,
+    BitOr,
+    BitXor,
+    LogAnd,
+    LogOr,
+}
+
+impl Display for BinOp {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        let symbol = match *self {
+            BinOp::Cmp(ord) => ord.to_str(),
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Rem => "%",
+            BinOp::Shl => "<<",
+            BinOp::Shr => ">>",
+            BinOp::Ushr => ">>>",
+            BinOp::BitAnd => "&",
+            BinOp::BitOr => "|",
+            BinOp::BitXor => "^",
+            BinOp::LogAnd => "&&",
+            BinOp::LogOr => "||",
+        };
+        write!(f, "{}", symbol)
+    }
 }
 
 pub fn stmt_expr(e: Expr<RecExpr>) -> Statement {

@@ -6,3 +6,4 @@ extern crate petgraph;
 pub mod classfile;
 pub mod decompiler;
 pub mod disassembler;
+pub mod pretty;

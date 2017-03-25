@@ -18,9 +18,9 @@ pub fn convert_bin_op(op: BinaryOp) -> BinOp {
         BinaryOp::Shl => BinOp::Shl,
         BinaryOp::Shr => BinOp::Shr,
         BinaryOp::Ushr => BinOp::Ushr,
-        BinaryOp::And => BinOp::And,
-        BinaryOp::Or => BinOp::Or,
-        BinaryOp::Xor => BinOp::Xor,
+        BinaryOp::And => BinOp::BitAnd,
+        BinaryOp::Or => BinOp::BitOr,
+        BinaryOp::Xor => BinOp::BitXor,
     }
 }
 
@@ -220,7 +220,7 @@ impl StackLayout {
     }
 
     fn stack(&self, i: isize) -> String {
-        format!("__stack_{}", i)
+        format!("stack_{}", i)
     }
 
     fn local(&self, i: usize) -> String {

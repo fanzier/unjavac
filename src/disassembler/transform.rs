@@ -58,7 +58,7 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &Const
             }
             ConstantInfo::Class { name_index } => {
                 let name = constant_pool.lookup_string(name_index);
-                unit.metadata.class_refs.insert(index, ClassRef(name.to_owned()));
+                unit.metadata.class_refs.insert(index, ClassRef(name.replace('/', ".")));
             }
             ConstantInfo::String { string_index } => {
                 let string = constant_pool.lookup_string(string_index);
@@ -212,7 +212,7 @@ fn descriptor_to_type<I: Iterator<Item = char>>(chars: &mut I) -> Type {
                 }
                 class_name.push(ch);
             }
-            Type::Reference(class_name)
+            Type::Reference(class_name.replace('/', "."))
         }
         'S' => Type::Short,
         'V' => Type::Void,

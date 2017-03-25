@@ -3,8 +3,6 @@ pub use petgraph::graph::*;
 pub use petgraph::visit::*;
 use disassembler::compilation_unit::*;
 use disassembler::instructions::*;
-use disassembler::display::ExtDisplay;
-use std::fmt::{Display, Formatter, Result};
 use pretty::*;
 
 type Label = u32;
@@ -14,55 +12,35 @@ pub struct Cfg<Stmt, Cond> {
     pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
 }
 
-impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> ExtDisplay for Cfg<Stmt, Cond> {
-    fn fmt<C>(&self, f: &mut Formatter, _: &CompilationUnit<C>, _: usize) -> Result {
-        for node_ref in self.graph.node_references() {
+impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
+    where Stmt: PrettyWith<Ctx>,
+          Cond: PrettyWith<Ctx>
+{
+    fn pretty_with(&self, context: &Ctx) -> Doc {
+        let block_docs = self.graph.node_references().map(|node_ref| {
             let node_id = node_ref.id();
-            writeln!(f, "#{}:", node_id.index())?;
-            write!(f, "{}", node_ref.weight())?;
+            let header = doc(format!("#{}:", node_id.index()));
+            let content = node_ref.weight().pretty_with(context);
             let mut edge_refs =
                 self.graph.edges_directed(node_id, Direction::Outgoing).collect::<Vec<_>>();
             edge_refs.sort_by_key(|&e| e.weight());
-            if edge_refs.len() == 1 {
+            let gotos = if edge_refs.len() == 0 {
+                empty()
+            } else if edge_refs.len() == 1 {
                 let edge_ref = edge_refs[0];
-                writeln!(f, "goto #{}", edge_ref.target().index())?;
+                newline() + format!("goto #{}", edge_ref.target().index())
             } else {
-                for edge_ref in edge_refs {
-                    writeln!(f,
-                             "  {} => goto #{}",
-                             edge_ref.weight(),
-                             edge_ref.target().index())?;
-                }
-            }
-            writeln!(f, "")?;
-        }
-        Ok(())
-    }
-}
-
-impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> Display for Cfg<Stmt, Cond> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        for node_ref in self.graph.node_references() {
-            let node_id = node_ref.id();
-            writeln!(f, "#{}:", node_id.index())?;
-            write!(f, "{}", node_ref.weight())?;
-            let mut edge_refs =
-                self.graph.edges_directed(node_id, Direction::Outgoing).collect::<Vec<_>>();
-            edge_refs.sort_by_key(|&e| e.weight());
-            if edge_refs.len() == 1 {
-                let edge_ref = edge_refs[0];
-                writeln!(f, "goto #{}", edge_ref.target().index())?;
-            } else {
-                for edge_ref in edge_refs {
-                    writeln!(f,
-                             "  {} => goto #{}",
-                             edge_ref.weight(),
-                             edge_ref.target().index())?;
-                }
-            }
-            writeln!(f, "")?;
-        }
-        Ok(())
+                let gotos = edge_refs.iter().map(|edge_ref| {
+                                                     doc(format!("{} => goto #{}",
+                                                                 edge_ref.weight(),
+                                                                 edge_ref.target().index()))
+                                                 });
+                let gotos = intersperse(gotos, newline());
+                nest(4, newline() + gotos)
+            };
+            header + newline() + content + gotos
+        });
+        intersperse(block_docs, newline() + newline())
     }
 }
 
@@ -81,15 +59,18 @@ impl<Stmt, Cond> Default for BasicBlock<Stmt, Cond> {
     }
 }
 
-impl<Stmt: Display + PlainPretty, Cond: Display + PlainPretty> Display for BasicBlock<Stmt, Cond> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
-        for stmt in &self.stmts {
-            writeln!(f, "{}", stmt.pretty().render_string(100))?;
-        }
-        if let Some(ref condition) = self.terminator {
-            writeln!(f, "if {}", condition.pretty().render_string(100))?;
-        }
-        Ok(())
+impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for BasicBlock<Stmt, Cond>
+    where Stmt: PrettyWith<Ctx>,
+          Cond: PrettyWith<Ctx>
+{
+    fn pretty_with(&self, context: &Ctx) -> Doc {
+        let stmts = self.stmts.iter().map(|stmt| stmt.pretty_with(context));
+        let terminator = if let Some(ref condition) = self.terminator {
+            newline() + nest(4, doc("if (") + condition.pretty_with(context) + ")")
+        } else {
+            empty()
+        };
+        intersperse(stmts, newline()) + terminator
     }
 }
 

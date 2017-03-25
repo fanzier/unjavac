@@ -1,5 +1,5 @@
 pub mod compilation_unit;
 pub mod disassemble;
-pub mod display;
+pub mod pretty;
 pub mod instructions;
 pub mod transform;

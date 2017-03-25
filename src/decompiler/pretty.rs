@@ -43,7 +43,7 @@ impl PartialOrd<Precedence> for Precedence {
 }
 
 fn parens_if<T>(e: &T, outer: Precedence, parens_if_equal_prec: bool) -> Doc
-    where T: HasPrecedence + PlainPretty
+    where T: HasPrecedence + Pretty
 {
     let doc = e.pretty();
     let inner = e.precedence();
@@ -94,16 +94,14 @@ impl<E> HasPrecedence for Expr<E> {
     }
 }
 
-impl Pretty for RecExpr {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
+impl<T> PrettyWith<T> for RecExpr {
+    fn pretty_with(&self, _: &T) -> Doc {
         self.inner().pretty()
     }
 }
 
-impl Pretty for Expr<RecExpr> {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
+impl<T> PrettyWith<T> for Expr<RecExpr> {
+    fn pretty_with(&self, _: &T) -> Doc {
         match *self {
             Expr::Literal(ref literal) => format!("{}", literal).into(),
             Expr::Assignable(ref v) => v.pretty(),
@@ -123,9 +121,9 @@ impl Pretty for Expr<RecExpr> {
                 } else {
                     class.0.to_owned().into()
                 };
-                let result = result + format!(".{}(", method.name);
-                let arguments = delim(args.iter().map(PlainPretty::pretty), &",".into());
-                (result + arguments.nest(4) + ")").group()
+                let result = result + format!(".{}", method.name);
+                let arguments = tupled(args.iter().map(Pretty::pretty));
+                group(result + arguments)
             }
             Expr::Assign { ref to, op, ref from } => {
                 let op_string = op.map_or_else(|| "".to_owned(), |op| format!("{}", op));
@@ -139,9 +137,8 @@ impl Pretty for Expr<RecExpr> {
     }
 }
 
-impl Pretty for Assignable {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
+impl<T> PrettyWith<T> for Assignable {
+    fn pretty_with(&self, _: &T) -> Doc {
         match *self {
             Assignable::Variable(ref ident, _) => ident.into(),
             Assignable::Field { ref this, ref class, ref field } => {
@@ -157,15 +154,12 @@ impl Pretty for Assignable {
     }
 }
 
-impl Pretty for Statement {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
+impl<T> PrettyWith<T> for Statement {
+    fn pretty_with(&self, _: &T) -> Doc {
         let result = match *self {
             Statement::Expr(ref e) => e.pretty() + ";",
             Statement::Return(ref val) => {
-                doc("return") +
-                val.as_ref().map_or(empty(), |v| doc(" ") + v.pretty()) +
-                ";"
+                doc("return") + val.as_ref().map_or(empty(), |v| doc(" ") + v.pretty()) + ";"
             }
             _ => unimplemented!(),
         };

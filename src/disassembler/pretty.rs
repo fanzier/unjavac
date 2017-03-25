@@ -2,32 +2,24 @@ pub use super::compilation_unit::*;
 use std::fmt::*;
 use pretty::*;
 
-fn do_indent(f: &mut Formatter, indent: usize) -> Result {
-    for _ in 0..indent {
-        write!(f, " ")?;
-    }
-    Ok(())
-}
-
-fn newline(f: &mut Formatter, indent: usize) -> Result {
-    writeln!(f, "")?;
-    do_indent(f, indent)
-}
-
-pub trait ExtDisplay {
-    fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>, indent: usize) -> Result;
-}
-
-impl<C: ExtDisplay> Display for CompilationUnit<C> {
+impl<C> Display for CompilationUnit<C>
+    where C: PrettyWith<CompilationUnit<C>>
+{
     fn fmt(&self, f: &mut Formatter) -> Result {
-        Modifier::fmt_modifiers(f, &self.modifiers)?;
-        write!(f, "{} {} {{", self.typ, self.name)?;
-        for declaration in &self.declarations {
-            newline(f, 4)?;
-            declaration.fmt(f, self, 4)?;
-        }
-        writeln!(f, "}}")?;
-        Ok(())
+        writeln!(f, "{}", self.pretty().render_string(120))
+    }
+}
+
+impl<C, T> PrettyWith<T> for CompilationUnit<C>
+    where C: PrettyWith<CompilationUnit<C>>
+{
+    fn pretty_with(&self, _: &T) -> Doc {
+        let modifiers = self.modifiers.pretty();
+        let first = modifiers + format!(" {} {} {{", self.typ, self.name);
+        let declarations =
+            self.declarations.iter().map(|declaration| declaration.pretty_with(self));
+        let declarations = newline() + intersperse(declarations, newline());
+        first + declarations.nest(4) + newline() + '}'
     }
 }
 
@@ -50,12 +42,9 @@ impl Display for Modifier {
     }
 }
 
-impl Modifier {
-    fn fmt_modifiers(f: &mut Formatter, modifiers: &[Modifier]) -> Result {
-        for modifier in modifiers {
-            write!(f, "{} ", modifier)?;
-        }
-        Ok(())
+impl<T> PrettyWith<T> for Vec<Modifier> {
+    fn pretty_with(&self, _: &T) -> Doc {
+        intersperse(self.iter().map(doc), ' ')
     }
 }
 
@@ -88,78 +77,68 @@ impl Display for Type {
     }
 }
 
+impl PrettyWith<str> for Signature {
+    fn pretty_with(&self, name: &str) -> Doc {
+        group(doc(&self.return_type) + spaceline() + name + tupled(self.parameters.iter().map(doc)))
+    }
+}
+
 impl Display for Signature {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "(")?;
-        let mut first = true;
-        for param in &self.parameters {
-            if first {
-                write!(f, "{}", param)?;
-            } else {
-                write!(f, ", {}", param)?;
-            }
-            first = false;
-        }
-        write!(f, ") -> {}", self.return_type)
+        write!(f, "{}", self.pretty_with("").render_string(None))
     }
 }
 
-impl<C: ExtDisplay> Declaration<C> {
-    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
+impl<T, C> PrettyWith<CompilationUnit<T>> for Declaration<C>
+    where C: PrettyWith<CompilationUnit<T>>
+{
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
             Declaration::Field(_) => unimplemented!(),
-            Declaration::Method(ref m) => m.fmt(f, unit, indent),
+            Declaration::Method(ref m) => m.pretty_with(unit),
         }
     }
 }
 
-impl<C: ExtDisplay> ExtDisplay for Method<C> {
-    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
-        let Method { ref modifiers, ref name, ref signature, ref code } = *self;
-        Modifier::fmt_modifiers(f, modifiers)?;
-        write!(f, "{}: {}", name, signature)?;
-        if let Some(ref code) = *code {
-            writeln!(f, " {{")?;
-            {
-                let indent = indent + 4;
-                code.fmt(f, unit, indent)?;
-            }
-            writeln!(f, "}}")
+impl<C, T> PrettyWith<CompilationUnit<T>> for Method<C>
+    where C: PrettyWith<CompilationUnit<T>>
+{
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
+        let mut result = self.modifiers.pretty() + ' ';
+        result += self.signature.pretty_with(&self.name);
+        if let Some(ref code) = self.code {
+            result += " {";
+            result += nest(4, newline() + code.pretty_with(unit));
+            result += newline() + "}";
         } else {
-            writeln!(f, ";")
+            result += ";"
         }
+        result
     }
 }
 
-impl ExtDisplay for Code {
-    fn fmt<T>(&self, f: &mut Formatter, unit: &CompilationUnit<T>, indent: usize) -> Result {
-        for &(pc, ref instruction) in &self.instructions {
-            write!(f, "{:#6X}: ", pc)?;
-            instruction.fmt(f, unit)?;
-            newline(f, indent)?;
-        }
-        Ok(())
+impl<T> PrettyWith<CompilationUnit<T>> for Code {
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
+        let docs = self.instructions.iter().map(|&(pc, ref instruction)| {
+                                                    doc(format!("{:#6X}: ", pc)) +
+                                                    instruction.pretty_with(unit)
+                                                });
+        intersperse(docs, newline())
     }
 }
 
-impl Instruction {
-    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
+impl<T> PrettyWith<CompilationUnit<T>> for Instruction {
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
-            Instruction::Nop => write!(f, "nop"),
-            Instruction::Load(ref rvalue) => {
-                write!(f, "load ")?;
-                rvalue.fmt(f, unit)
-            }
-            Instruction::Store(ref lvalue) => {
-                write!(f, "store ")?;
-                lvalue.fmt(f, unit)
-            }
-            Instruction::Invoke(ref invoke) => invoke.fmt(f, unit),
+            Instruction::Nop => doc("nop"),
+            Instruction::Load(ref rvalue) => doc("load ") + rvalue.pretty_with(unit),
+            Instruction::Store(ref lvalue) => doc("store ") + lvalue.pretty_with(unit),
+            Instruction::Invoke(ref invoke) => invoke.pretty_with(unit),
             Instruction::Return(val) => {
-                write!(f, "return {}", if val.is_some() { "value" } else { "void" })
+                doc(format!("return {}", if val.is_some() { "value" } else { "void" }))
             }
-            Instruction::Jump(ref jump) => write!(f, "{}", jump),
-            Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
+            Instruction::Jump(ref jump) => doc(format!("{}", jump)),
+            Instruction::Arithm(ref arithm) => doc(format!("{}", arithm)),
             _ => unimplemented!(),
         }
     }
@@ -179,13 +158,6 @@ impl Display for Instruction {
             Instruction::Arithm(ref arithm) => write!(f, "{}", arithm),
             _ => unimplemented!(),
         }
-    }
-}
-
-impl Pretty for Instruction {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
-        doc(format!("{}", self))
     }
 }
 
@@ -238,27 +210,27 @@ impl Display for LValue {
     }
 }
 
-impl LValue {
-    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
+impl<T> PrettyWith<CompilationUnit<T>> for LValue {
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
-            LValue::Local(i) => write!(f, "local_{}", i),
-            LValue::Stack(i) => write!(f, "stack[{}]", i),
-            LValue::StaticField { field_ref } => {
-                let field = &unit.metadata.field_refs[&field_ref];
-                let class = &unit.metadata.class_refs[&field.class_ref];
-                write!(f, "{}.{}: {}", &class.0, field.name, field.typ)
+                LValue::Local(i) => format!("local_{}", i),
+                LValue::Stack(i) => format!("stack[{}]", i),
+                LValue::StaticField { field_ref } => {
+                    let field = &unit.metadata.field_refs[&field_ref];
+                    let class = &unit.metadata.class_refs[&field.class_ref];
+                    format!("{}.{}: {}", &class.0, field.name, field.typ)
+                }
+                LValue::InstanceField { object_stack_index, field_ref } => {
+                    let field = &unit.metadata.field_refs[&field_ref];
+                    let class = &unit.metadata.class_refs[&field.class_ref];
+                    format!("(stack[{}]: {}).{}: {}",
+                            object_stack_index,
+                            &class.0,
+                            field.name,
+                            field.typ)
+                }
             }
-            LValue::InstanceField { object_stack_index, field_ref } => {
-                let field = &unit.metadata.field_refs[&field_ref];
-                let class = &unit.metadata.class_refs[&field.class_ref];
-                write!(f,
-                       "(stack[{}]: {}).{}: {}",
-                       object_stack_index,
-                       &class.0,
-                       field.name,
-                       field.typ)
-            }
-        }
+            .into()
     }
 }
 
@@ -272,44 +244,41 @@ impl Display for RValue {
     }
 }
 
-impl RValue {
-    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
+impl<T> PrettyWith<CompilationUnit<T>> for RValue {
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
-            RValue::Constant(ref constant) => write!(f, "{}", constant),
-            RValue::ConstantRef { const_ref } => {
-                let constant = &unit.metadata.literals[&const_ref];
-                write!(f, "{}", constant)
+                RValue::Constant(ref constant) => format!("{}", constant),
+                RValue::ConstantRef { const_ref } => {
+                    let constant = &unit.metadata.literals[&const_ref];
+                    format!("{}", constant)
+                }
+                RValue::LValue(ref lvalue) => format!("{}", lvalue),
             }
-            RValue::LValue(ref lvalue) => write!(f, "{}", lvalue),
-        }
+            .into()
     }
 }
 
 impl Display for Invoke {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        match self.kind {
-            InvokeKind::Virtual => write!(f, "virtual")?,
-            InvokeKind::Special => write!(f, "special")?,
-            InvokeKind::Static => write!(f, "static")?,
+        let kind = match self.kind {
+            InvokeKind::Virtual => "virtual",
+            InvokeKind::Special => "special",
+            InvokeKind::Static => "static",
         };
-        write!(f, " {}", self.method_index)
+        write!(f, "{} {}", kind, self.method_index)
     }
 }
 
-impl Invoke {
-    pub fn fmt<C>(&self, f: &mut Formatter, unit: &CompilationUnit<C>) -> Result {
-        match self.kind {
-            InvokeKind::Virtual => write!(f, "invoke virtual")?,
-            InvokeKind::Special => write!(f, "invoke special")?,
-            InvokeKind::Static => write!(f, "invoke static")?,
+impl<T> PrettyWith<CompilationUnit<T>> for Invoke {
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
+        let kind = match self.kind {
+            InvokeKind::Virtual => "invoke virtual",
+            InvokeKind::Special => "invoke special",
+            InvokeKind::Static => "invoke static",
         };
         let method_ref = &unit.metadata.method_refs[&self.method_index];
         let class = &unit.metadata.class_refs[&method_ref.class_ref].0;
-        write!(f,
-               " {}.{}: {}",
-               class,
-               method_ref.name,
-               method_ref.signature)
+        doc(kind) + ' ' + class + '.' + &method_ref.name + ": " + &method_ref.signature
     }
 }
 
@@ -334,9 +303,8 @@ impl Display for JumpCondition {
     }
 }
 
-impl Pretty for JumpCondition {
-    type Extra = ();
-    fn pretty_with(&self, _: ()) -> Doc {
+impl<T> PrettyWith<T> for JumpCondition {
+    fn pretty_with(&self, _: &T) -> Doc {
         doc(format!("{}", self))
     }
 }

@@ -1,21 +1,19 @@
 use std::cmp;
 use std::io;
 use std::borrow::Cow;
-use std::ops::Add;
+use std::ops::{Add, AddAssign};
 
-pub trait Pretty {
-    /// Additional information required to pretty-print:
-    type Extra;
-    fn pretty_with(&self, extra: Self::Extra) -> Doc;
+pub trait PrettyWith<Ctx: ?Sized> {
+    fn pretty_with(&self, context: &Ctx) -> Doc;
 }
 
-pub trait PlainPretty {
+pub trait Pretty {
     fn pretty(&self) -> Doc;
 }
 
-impl<T: Pretty<Extra = ()>> PlainPretty for T {
+impl<T: PrettyWith<()>> Pretty for T {
     fn pretty(&self) -> Doc {
-        self.pretty_with(())
+        self.pretty_with(&())
     }
 }
 
@@ -50,6 +48,10 @@ pub fn spaceline() -> Doc {
     Doc::Space(true)
 }
 
+pub fn nest(offset: usize, doc: Doc) -> Doc {
+    doc.nest(offset)
+}
+
 pub fn concat<I>(docs: I) -> Doc
     where I: IntoIterator<Item = Doc>
 {
@@ -60,18 +62,35 @@ pub fn doc<T: Into<Doc>>(data: T) -> Doc {
     data.into()
 }
 
-pub fn delim<I: IntoIterator<Item = Doc>>(docs: I, delim: &Doc) -> Doc {
+pub fn intersperse<I, S>(docs: I, sep: S) -> Doc
+    where I: IntoIterator<Item = Doc>,
+          S: Into<Doc>
+{
+    let sep = sep.into();
     let mut iter = docs.into_iter();
-    let result = if let Some(first) = iter.next() {
-        let mut result = breakline() + first;
+    if let Some(first) = iter.next() {
+        let mut result = first;
         for next in iter {
-            result = result + delim.clone() + spaceline() + next;
+            result += sep.clone() + next;
         }
         result
     } else {
         empty()
-    };
-    result.group()
+    }
+}
+
+pub fn tupled<I: IntoIterator<Item = Doc>>(docs: I) -> Doc {
+    enclose_sep('(', ')', doc(',') + spaceline(), docs)
+}
+
+pub fn enclose_sep<L, R, S, I>(left: L, right: R, sep: S, docs: I) -> Doc
+    where L: Into<Doc>,
+          R: Into<Doc>,
+          S: Into<Doc>,
+          I: IntoIterator<Item = Doc>
+{
+    let result = left.into() + breakline() + intersperse(docs, sep) + right.into();
+    result.nest(4).group()
 }
 
 impl<S> From<S> for Doc
@@ -85,13 +104,20 @@ impl<S> From<S> for Doc
 }
 
 impl Doc {
-    pub fn render<W: ?Sized + io::Write>(&self, width: usize, out: &mut W) -> io::Result<()> {
-        best(self, width, out)
+    pub fn render<I, W>(&self, width_limit: I, out: &mut W) -> io::Result<()>
+        where I: Into<Option<usize>>,
+              W: ?Sized + io::Write
+    {
+        best(self,
+             width_limit.into().unwrap_or(usize::max_value() / 2),
+             out)
     }
 
-    pub fn render_string(&self, width: usize) -> String {
+    pub fn render_string<I>(&self, width_limit: I) -> String
+        where I: Into<Option<usize>>
+    {
         let mut writer = vec![];
-        self.render(width, &mut writer).unwrap();
+        self.render(width_limit, &mut writer).unwrap();
         String::from_utf8(writer).unwrap()
     }
 
@@ -110,8 +136,17 @@ impl Doc {
 
 impl<U: Into<Doc>> Add<U> for Doc {
     type Output = Doc;
-    fn add(self, rhs: U) -> Doc {
-        self.append(rhs.into())
+    fn add(mut self, rhs: U) -> Doc {
+        self.add_assign(rhs);
+        self
+    }
+}
+
+impl<U: Into<Doc>> AddAssign<U> for Doc {
+    fn add_assign(&mut self, rhs: U) {
+        use std::mem;
+        let doc = mem::replace(self, empty());
+        mem::replace(self, doc.append(rhs.into()));
     }
 }
 

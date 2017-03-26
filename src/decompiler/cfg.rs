@@ -10,6 +10,7 @@ type Label = u32;
 #[derive(Debug)]
 pub struct Cfg<Stmt, Cond> {
     pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
+    pub entry_point: usize,
 }
 
 impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
@@ -17,6 +18,7 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
           Cond: PrettyWith<Ctx>
 {
     fn pretty_with(&self, context: &Ctx) -> Doc {
+        let header = doc(format!("start at #{}", self.entry_point)) + newline() + newline();
         let block_docs = self.graph.node_references().map(|node_ref| {
             let node_id = node_ref.id();
             let header = doc(format!("#{}:", node_id.index()));
@@ -24,7 +26,7 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
             let mut edge_refs =
                 self.graph.edges_directed(node_id, Direction::Outgoing).collect::<Vec<_>>();
             edge_refs.sort_by_key(|&e| e.weight());
-            let gotos = if edge_refs.len() == 0 {
+            let gotos = if edge_refs.is_empty() {
                 empty()
             } else if edge_refs.len() == 1 {
                 let edge_ref = edge_refs[0];
@@ -40,7 +42,7 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
             };
             header + newline() + content + gotos
         });
-        intersperse(block_docs, newline() + newline())
+        header + intersperse(block_docs, newline() + newline())
     }
 }
 
@@ -162,7 +164,15 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
         bbs.push(bb);
     }
 
-    let mut cfg = Cfg { graph: Graph::new() };
+    // Create empty function entry block:
+    bbs.push(BasicBlock::default());
+    let entry_point = bbs.len() - 1;
+    edges.push((entry_point, 0, false));
+
+    let mut cfg = Cfg {
+        graph: Graph::new(),
+        entry_point: entry_point,
+    };
     for bb in bbs {
         cfg.graph.add_node(bb);
     }

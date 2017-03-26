@@ -57,7 +57,7 @@ pub enum UnitType {
     Enum,
 }
 
-#[derive(Copy, Clone, Debug, Hash)]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum Modifier {
     Public,
     Protected,
@@ -128,7 +128,7 @@ pub enum Type {
 
 #[derive(Clone, Debug, Hash)]
 pub struct Signature {
-    pub parameters: Vec<Type>,
+    pub parameters: Vec<(String, Type)>,
     pub return_type: Type,
 }
 

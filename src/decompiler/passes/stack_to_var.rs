@@ -54,7 +54,7 @@ impl StackLayout {
                 let expr = self.make_stack_vars_rvalue(rvalue, metadata);
                 let top = self.push();
                 vec![stmt_expr(Expr::Assign {
-                                   to: Box::new(Assignable::Variable(self.stack(top), 0)),
+                                   to: Box::new(Assignable::Variable(stack(top), 0)),
                                    op: None,
                                    from: rec_expr(expr),
                                })]
@@ -65,7 +65,7 @@ impl StackLayout {
                 vec![stmt_expr(Expr::Assign {
                                    to: Box::new(assignable),
                                    op: None,
-                                   from: mk_variable(self.stack(top)),
+                                   from: mk_variable(stack(top)),
                                })]
             }
             Instruction::Arithm(ref arithm) => {
@@ -73,9 +73,9 @@ impl StackLayout {
                     Arithm::UnaryOp(op) => {
                         let v = self.pop();
                         let res = self.push();
-                        let to = Box::new(Assignable::Variable(self.stack(res), 0));
+                        let to = Box::new(Assignable::Variable(stack(res), 0));
                         let from = rec_expr(Expr::UnaryOp(convert_un_op(op),
-                                                          mk_variable(self.stack(v))));
+                                                          mk_variable(stack(v))));
                         vec![stmt_expr(Expr::Assign {
                                            to: to,
                                            op: None,
@@ -86,10 +86,10 @@ impl StackLayout {
                         let w = self.pop();
                         let v = self.pop();
                         let res = self.push();
-                        let to = Box::new(Assignable::Variable(self.stack(res), 0));
+                        let to = Box::new(Assignable::Variable(stack(res), 0));
                         let from = rec_expr(Expr::BinaryOp(convert_bin_op(op),
-                                                           mk_variable(self.stack(v)),
-                                                           mk_variable(self.stack(w))));
+                                                           mk_variable(stack(v)),
+                                                           mk_variable(stack(w))));
                         vec![stmt_expr(Expr::Assign {
                                            to: to,
                                            op: None,
@@ -97,7 +97,7 @@ impl StackLayout {
                                        })]
                     }
                     Arithm::IncreaseLocal { local_index, increase } => {
-                        let to = Box::new(Assignable::Variable(self.local(local_index as usize),
+                        let to = Box::new(Assignable::Variable(local(local_index as usize),
                                                                0));
                         let from = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
                         vec![stmt_expr(Expr::Assign {
@@ -121,7 +121,7 @@ impl StackLayout {
                 let this_object = match kind {
                     InvokeKind::Special | InvokeKind::Virtual => {
                         let top = self.pop();
-                        Some(mk_variable(self.stack(top)))
+                        Some(mk_variable(stack(top)))
                     }
                     _ => None,
                 };
@@ -129,7 +129,7 @@ impl StackLayout {
                                                method_ref.clone(),
                                                class_ref.clone(),
                                                args_range.into_iter()
-                                                   .map(|i| mk_variable(self.stack(i)))
+                                                   .map(|i| mk_variable(stack(i)))
                                                    .collect::<Vec<_>>());
                 if method_ref.signature.return_type == Type::Void {
                     vec![stmt_expr(method_call)]
@@ -138,7 +138,7 @@ impl StackLayout {
                     vec![stmt_expr(Expr::Assign {
                                        from: rec_expr(method_call),
                                        op: None,
-                                       to: Box::new(Assignable::Variable(self.stack(result), 0)),
+                                       to: Box::new(Assignable::Variable(stack(result), 0)),
                                    })]
                 }
             }
@@ -146,7 +146,7 @@ impl StackLayout {
             Instruction::Return(value) => {
                 let value = value.map(|_| {
                                           let top = self.pop();
-                                          mk_variable(self.stack(top))
+                                          mk_variable(stack(top))
                                       });
                 vec![Statement::Return(value)]
             }
@@ -169,11 +169,11 @@ impl StackLayout {
     fn make_stack_vars_lvalue(&mut self, expr: &LValue, metadata: &Metadata) -> Assignable {
         let mut remove = 0;
         let result = match *expr {
-            LValue::Local(index) => Assignable::Variable(self.local(index), 0),
+            LValue::Local(index) => Assignable::Variable(local(index), 0),
             LValue::Stack(index) => {
                 let real_index = self.get(index);
                 remove += 1;
-                Assignable::Variable(self.stack(real_index), 0)
+                Assignable::Variable(stack(real_index), 0)
             }
             LValue::StaticField { field_ref } => {
                 let field = &metadata.field_refs[&field_ref];
@@ -190,7 +190,7 @@ impl StackLayout {
                 let index = self.get(object_stack_index);
                 remove += 1;
                 Assignable::Field {
-                    this: Some(mk_variable(self.stack(index))),
+                    this: Some(mk_variable(stack(index))),
                     class: class.clone(),
                     field: field.clone(),
                 }
@@ -205,7 +205,7 @@ impl StackLayout {
             JumpCondition::CmpZero(ord) => {
                 let v = self.pop();
                 Expr::BinaryOp(BinOp::Cmp(ord),
-                               mk_variable(self.stack(v)),
+                               mk_variable(stack(v)),
                                rec_expr(Expr::Literal(Literal::Integer(0))))
             }
             JumpCondition::Cmp(ord) |
@@ -213,24 +213,37 @@ impl StackLayout {
                 let w = self.pop();
                 let v = self.pop();
                 Expr::BinaryOp(BinOp::Cmp(ord),
-                               mk_variable(self.stack(v)),
-                               mk_variable(self.stack(w)))
+                               mk_variable(stack(v)),
+                               mk_variable(stack(w)))
             }
         }
     }
+}
 
-    fn stack(&self, i: isize) -> String {
-        format!("stack_{}", i)
-    }
+fn stack(i: isize) -> String {
+    format!("stack_{}", i)
+}
 
-    fn local(&self, i: usize) -> String {
-        format!("local_{}", i)
-    }
+fn local(i: usize) -> String {
+    format!("local_{}", i)
+}
+
+fn param(i: usize) -> String {
+    format!("param_{}", i)
 }
 
 pub fn stack_to_vars(unit: CompilationUnit<Cfg<Instruction, JumpCondition>>)
                      -> CompilationUnit<Cfg<Statement, RecExpr>> {
-    unit.map(transform)
+    let mut unit = unit.map(transform);
+    for declaration in &mut unit.declarations {
+        match *declaration {
+            Declaration::Method(ref mut method) => {
+                store_method_params_in_locals(method);
+            }
+            Declaration::Field(..) => {}
+        }
+    }
+    unit
 }
 
 fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
@@ -272,5 +285,28 @@ fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
     Cfg {
         graph: cfg.graph.map(|nx, _| mem::replace(&mut new_bbs[nx.index()], BasicBlock::default()),
                              |_, e| *e),
+        entry_point: cfg.entry_point,
+    }
+}
+
+fn store_method_params_in_locals(method: &mut Method<Cfg<Statement, RecExpr>>) {
+    let mut local_index = 0;
+    let mut assignments = vec![];
+    if !method.modifiers.contains(&Modifier::Static) {
+        let to = Box::new(Assignable::Variable(local(local_index), 0));
+        let from = rec_expr(Expr::This);
+        assignments.push(Statement::Expr(rec_expr(Expr::Assign { from: from, op: None, to: to })));
+        local_index += 1;
+    }
+    for (param_index, parameter) in method.signature.parameters.iter_mut().enumerate() {
+        parameter.0 = param(param_index);
+        let to = Box::new(Assignable::Variable(local(local_index), 0));
+        local_index += 1;
+        let from = mk_variable(param(param_index));
+        assignments.push(Statement::Expr(rec_expr(Expr::Assign { from: from, op: None, to: to })));
+    }
+    if let Some(ref mut cfg) = method.code {
+        let entry_block = &mut cfg.graph.node_weight_mut(NodeIndex::new(cfg.entry_point)).unwrap();
+        entry_block.stmts.append(&mut assignments);
     }
 }

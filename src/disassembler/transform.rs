@@ -185,7 +185,7 @@ fn descriptor_to_signature(descriptor: &str) -> Signature {
                descriptor);
     }
     while *chars.peek().unwrap() != ')' {
-        params.push(descriptor_to_type(&mut chars));
+        params.push(("".to_owned(), descriptor_to_type(&mut chars)));
     }
     chars.next().unwrap();
     let return_type = descriptor_to_type(&mut chars);

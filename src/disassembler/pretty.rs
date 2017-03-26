@@ -79,7 +79,12 @@ impl Display for Type {
 
 impl PrettyWith<str> for Signature {
     fn pretty_with(&self, name: &str) -> Doc {
-        group(doc(&self.return_type) + spaceline() + name + tupled(self.parameters.iter().map(doc)))
+        let params = self.parameters.iter().map(|&(ref name, ref typ)| if name.is_empty() {
+                                                    doc(typ)
+                                                } else {
+                                                    doc(typ) + ' ' + name
+                                                });
+        group(doc(&self.return_type) + spaceline() + name + tupled(params))
     }
 }
 

@@ -1,6 +1,6 @@
-use super::super::cfg::*;
+use decompiler::cfg::*;
 use disassembler::instructions::*;
-use super::super::types::*;
+use decompiler::types::*;
 
 pub fn convert_un_op(op: UnaryOp) -> UnOp {
     match op {

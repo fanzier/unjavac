@@ -1,4 +1,4 @@
-use disassembler::compilation_unit::*;
+use disassembler::types::*;
 use std::fmt::*;
 
 type Ident = String;

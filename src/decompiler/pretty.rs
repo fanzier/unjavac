@@ -1,5 +1,5 @@
 use pretty::*;
-use super::types::*;
+use decompiler::types::*;
 use std::cmp::Ordering;
 
 trait HasPrecedence {

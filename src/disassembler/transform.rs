@@ -1,6 +1,6 @@
-pub use super::super::classfile::parser::*;
-pub use super::compilation_unit::*;
-pub use super::disassemble::*;
+pub use classfile::parser::*;
+pub use disassembler::types::*;
+pub use disassembler::disassemble::*;
 
 pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
     let mut unit = CompilationUnit {

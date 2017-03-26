@@ -1,4 +1,4 @@
-pub use super::compilation_unit::*;
+pub use disassembler::types::*;
 pub use std::ops::Range;
 
 #[derive(Copy, Clone, Debug)]

@@ -1,5 +1,5 @@
-pub use disassembler::compilation_unit::*;
-pub use super::cfg::*;
+pub use disassembler::types::*;
+pub use decompiler::cfg::*;
 pub use decompiler::passes::*;
 pub use decompiler::types::*;
 

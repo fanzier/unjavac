@@ -1,5 +1,5 @@
-pub use super::super::classfile::parser::*;
-pub use super::instructions::*;
+pub use classfile::parser::*;
+pub use disassembler::instructions::*;
 use std::collections::HashMap;
 
 #[derive(Debug)]

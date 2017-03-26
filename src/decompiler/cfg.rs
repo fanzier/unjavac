@@ -1,7 +1,7 @@
 pub use petgraph::*;
 pub use petgraph::graph::*;
 pub use petgraph::visit::*;
-use disassembler::compilation_unit::*;
+use disassembler::types::*;
 use disassembler::instructions::*;
 use pretty::*;
 

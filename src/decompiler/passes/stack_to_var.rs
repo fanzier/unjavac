@@ -97,8 +97,7 @@ impl StackLayout {
                                        })]
                     }
                     Arithm::IncreaseLocal { local_index, increase } => {
-                        let to = Box::new(Assignable::Variable(local(local_index as usize),
-                                                               0));
+                        let to = Box::new(Assignable::Variable(local(local_index as usize), 0));
                         let from = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
                         vec![stmt_expr(Expr::Assign {
                                            to: to,
@@ -295,18 +294,30 @@ fn store_method_params_in_locals(method: &mut Method<Cfg<Statement, RecExpr>>) {
     if !method.modifiers.contains(&Modifier::Static) {
         let to = Box::new(Assignable::Variable(local(local_index), 0));
         let from = rec_expr(Expr::This);
-        assignments.push(Statement::Expr(rec_expr(Expr::Assign { from: from, op: None, to: to })));
+        assignments.push(Statement::Expr(rec_expr(Expr::Assign {
+                                                      from: from,
+                                                      op: None,
+                                                      to: to,
+                                                  })));
         local_index += 1;
     }
-    for (param_index, parameter) in method.signature.parameters.iter_mut().enumerate() {
+    for (param_index, parameter) in
+        method.signature
+            .parameters
+            .iter_mut()
+            .enumerate() {
         parameter.0 = param(param_index);
         let to = Box::new(Assignable::Variable(local(local_index), 0));
         local_index += 1;
         let from = mk_variable(param(param_index));
-        assignments.push(Statement::Expr(rec_expr(Expr::Assign { from: from, op: None, to: to })));
+        assignments.push(Statement::Expr(rec_expr(Expr::Assign {
+                                                      from: from,
+                                                      op: None,
+                                                      to: to,
+                                                  })));
     }
     if let Some(ref mut cfg) = method.code {
-        let entry_block = &mut cfg.graph.node_weight_mut(NodeIndex::new(cfg.entry_point)).unwrap();
+        let entry_block = &mut cfg.graph.node_weight_mut(cfg.entry_point).unwrap();
         entry_block.stmts.append(&mut assignments);
     }
 }

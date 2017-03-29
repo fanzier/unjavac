@@ -156,13 +156,66 @@ impl<T> PrettyWith<T> for Assignable {
 
 impl<T> PrettyWith<T> for Statement {
     fn pretty_with(&self, _: &T) -> Doc {
-        let result = match *self {
-            Statement::Expr(ref e) => e.pretty() + ";",
-            Statement::Return(ref val) => {
-                doc("return") + val.as_ref().map_or(empty(), |v| doc(" ") + v.pretty()) + ";"
+        match *self {
+            Statement::Expr(ref e) => nest(4, e.pretty() + ";"),
+            Statement::Block(ref block) => block.pretty(),
+            Statement::If { ref cond, ref then, ref els } => {
+                doc("if (") + cond.pretty() + ") " + then.pretty() +
+                els.as_ref().map_or_else(empty, |e| doc(" else ") + e.pretty())
             }
-            _ => unimplemented!(),
+            Statement::While { ref label, ref cond, ref body, do_while } => {
+                let while_part = doc("while (") + cond.pretty() + ")";
+                let while_part = if let Some(ref label) = *label {
+                    group(doc(label) + ':' + spaceline() + while_part)
+                } else {
+                    while_part
+                };
+                let (header, footer) = if do_while {
+                    (doc("do "), while_part + ';')
+                } else {
+                    (while_part + ' ', empty())
+                };
+                header + body.pretty() + footer
+            }
+            Statement::For(..) => unimplemented!(),
+            Statement::Break(ref label) => {
+                doc("break") + label.as_ref().map_or_else(empty, |l| doc(" ") + l) + ";"
+            }
+            Statement::Continue(ref label) => {
+                doc("continue") + label.as_ref().map_or_else(empty, |l| doc(" ") + l) + ";"
+            }
+            Statement::Return(ref val) => {
+                doc("return") + val.as_ref().map_or_else(empty, |v| doc(" ") + v.pretty()) + ";"
+            }
+            Statement::Throw(..) => unimplemented!(),
+            Statement::Synchronized(..) => unimplemented!(),
+            Statement::Try { .. } => unimplemented!(),
+        }
+    }
+}
+
+impl<T> PrettyWith<T> for Block {
+    fn pretty_with(&self, _: &T) -> Doc {
+        let declarations = &self.0;
+        let separator = if declarations.is_empty() {
+            empty()
+        } else {
+            newline()
         };
-        result.nest(4)
+        let declarations = intersperse(declarations.iter().map(|d| d.pretty()), newline());
+        let statements = &self.1;
+        let statements = intersperse(statements.iter().map(|d| d.pretty()), newline());
+        doc('{') + nest(4, newline() + declarations + separator + statements) + newline() + '}'
+    }
+}
+
+impl<T> PrettyWith<T> for LocalDecl {
+    fn pretty_with(&self, _: &T) -> Doc {
+        let initializer = if let Some(ref value) = self.init {
+            group(nest(4, doc(" =") + spaceline() + value.pretty()))
+        } else {
+            empty()
+        };
+        doc(&self.typ) + format!(" {}", self.ident) + initializer + ';'
     }
 }

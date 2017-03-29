@@ -1,7 +1,7 @@
 use disassembler::types::*;
 use std::fmt::*;
 
-type Ident = String;
+pub type Ident = String;
 
 pub fn rec_expr(e: Expr<RecExpr>) -> RecExpr {
     RecExpr(Box::new(e))
@@ -31,7 +31,7 @@ pub enum Expr<E> {
     },
     New { class: Type, args: Vec<E> },
     This,
-    Super,
+    Super, 
     // TODO this(...), super(...)
 }
 
@@ -128,12 +128,12 @@ pub enum Statement {
         els: Option<Block>,
     },
     While {
+        label: Option<Ident>,
         cond: RecExpr,
         body: Block,
         do_while: bool,
     },
-    For(Box<ForControl>),
-    Label { label: Ident, stmt: Box<Statement> },
+    For(Option<Ident>, Box<ForControl>),
     Break(Option<Ident>),
     Continue(Option<Ident>),
     Return(Option<RecExpr>),
@@ -155,6 +155,12 @@ impl Display for Statement {
 
 #[derive(Clone, Debug, Hash)]
 pub struct Block(pub Vec<LocalDecl>, pub Vec<Statement>);
+
+impl Default for Block {
+    fn default() -> Block {
+        Block(vec![], vec![])
+    }
+}
 
 #[derive(Clone, Debug, Hash)]
 pub struct LocalDecl {

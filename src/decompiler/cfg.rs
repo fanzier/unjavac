@@ -5,12 +5,15 @@ use disassembler::types::*;
 use disassembler::instructions::*;
 use pretty::*;
 
-type Label = u32;
+pub type Label = NodeIndex<LabelIndex>;
+pub type LabelIndex = usize;
+pub type CfgGraph<Stmt, Cond> = Graph<BasicBlock<Stmt, Cond>, bool, Directed, LabelIndex>;
+pub type Edge = bool;
 
 #[derive(Debug)]
 pub struct Cfg<Stmt, Cond> {
-    pub graph: Graph<BasicBlock<Stmt, Cond>, bool, Directed, Label>,
-    pub entry_point: usize,
+    pub graph: CfgGraph<Stmt, Cond>,
+    pub entry_point: Label,
 }
 
 impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
@@ -18,7 +21,7 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
           Cond: PrettyWith<Ctx>
 {
     fn pretty_with(&self, context: &Ctx) -> Doc {
-        let header = doc(format!("start at #{}", self.entry_point)) + newline() + newline();
+        let header = doc(format!("start at #{}", self.entry_point.index())) + newline() + newline();
         let block_docs = self.graph.node_references().map(|node_ref| {
             let node_id = node_ref.id();
             let header = doc(format!("#{}:", node_id.index()));
@@ -170,16 +173,14 @@ pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
     edges.push((entry_point, 0, false));
 
     let mut cfg = Cfg {
-        graph: Graph::new(),
-        entry_point: entry_point,
+        graph: Graph::with_capacity(bbs.len(), edges.len()),
+        entry_point: entry_point.into(),
     };
     for bb in bbs {
         cfg.graph.add_node(bb);
     }
     for (from, to, edge) in edges {
-        cfg.graph.add_edge(NodeIndex::from(from as Label),
-                           NodeIndex::from(to as Label),
-                           edge);
+        cfg.graph.add_edge(from.into(), to.into(), edge);
     }
     cfg
 }

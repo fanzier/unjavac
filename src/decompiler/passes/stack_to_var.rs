@@ -98,10 +98,13 @@ impl StackLayout {
                     }
                     Arithm::IncreaseLocal { local_index, increase } => {
                         let to = Box::new(Assignable::Variable(local(local_index as usize), 0));
-                        let from = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
+                        let increase = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
+                        let from = rec_expr(Expr::BinaryOp(BinOp::Add,
+                                                           rec_expr(Expr::Assignable(to.clone())),
+                                                           increase));
                         vec![stmt_expr(Expr::Assign {
                                            to: to,
-                                           op: Some(BinOp::Add),
+                                           op: None,
                                            from: from,
                                        })]
                     }
@@ -285,6 +288,7 @@ fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
         graph: cfg.graph.map(|nx, _| mem::replace(&mut new_bbs[nx.index()], BasicBlock::default()),
                              |_, e| *e),
         entry_point: cfg.entry_point,
+        exit_point: cfg.exit_point,
     }
 }
 

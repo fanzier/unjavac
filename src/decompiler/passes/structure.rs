@@ -40,6 +40,8 @@ use std::collections::{BTreeSet, BTreeMap};
 
 type Set<T> = BTreeSet<T>;
 type Map<K, T> = BTreeMap<K, T>;
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+struct Jump(Label, Label);
 
 pub fn structure(unit: CompilationUnit<Cfg<Statement, RecExpr>>) -> CompilationUnit<Block> {
     unit.map(structure_cfg)
@@ -49,7 +51,10 @@ pub fn structure(unit: CompilationUnit<Cfg<Statement, RecExpr>>) -> CompilationU
 struct Loop {
     nodes: Set<Label>,
     entry: Label,
+    continue_edges: Set<Jump>,
     exits: Set<Label>,
+    break_point: Label,
+    break_edges: Set<Jump>,
 }
 
 fn loop_label(index: usize) -> String {
@@ -61,13 +66,21 @@ struct Context {
     cfg: Cfg<Statement, RecExpr>,
     loops: Vec<Loop>,
     entry_to_loop_index: Map<Label, usize>,
+    loop_breaks: Map<Jump, usize>, // jump -> loop index
+    dominators: Dominators,
+    postdominators: Dominators,
 }
 
 fn create_context(cfg: Cfg<Statement, RecExpr>) -> Context {
+    let dominators = cfg.compute_dominators(false);
+    let postdominators = cfg.compute_dominators(true);
     Context {
         cfg: cfg,
         loops: vec![],
         entry_to_loop_index: Map::new(),
+        loop_breaks: Map::new(),
+        dominators: dominators,
+        postdominators: postdominators,
     }
 }
 
@@ -79,54 +92,62 @@ fn structure_cfg(cfg: Cfg<Statement, RecExpr>, _: &Metadata) -> Block {
         .collect::<Set<_>>();
     collect_loops(&mut ctx, &all_nodes);
     let entry = ctx.cfg.entry_point;
-    let result = structure_from_to(&mut ctx, entry, None);
+    let exit = ctx.cfg.exit_point;
+    let result = structure_from_to(&mut ctx, entry, exit);
     Block(vec![], result)
 }
 
-fn structure_from_to(ctx: &mut Context, mut cur: Label, stop: Option<Label>) -> Vec<Statement> {
+fn structure_from_to(ctx: &mut Context, mut cur: Label, stop: Label) -> Vec<Statement> {
     let mut result = vec![];
-    while Some(cur) != stop {
-        let next = translate_block(ctx, &mut result, cur, None);
-        if let Some(next) = next {
-            cur = next;
-        } else {
-            break;
-        }
+    while cur != stop && cur != ctx.cfg.exit_point {
+        cur = translate_block(ctx, &mut result, cur, stop);
     }
     result
 }
 
-fn handle_jump(ctx: &mut Context,
-               result: &mut Vec<Statement>,
-               cur: Label,
-               next: Label)
-               -> Option<Label> {
+fn handle_jump(ctx: &mut Context, result: &mut Vec<Statement>, jump: Jump, stop: Label) -> Label {
+    let Jump(_cur, next) = jump;
+    assert!(ctx.postdominators.is_for(stop, next),
+            "stop point {} doesn't postdominate next {}",
+            stop.index(),
+            next.index());
+
     if let Some(&loop_index) = ctx.entry_to_loop_index.get(&next) {
-        let is_continue_jump = ctx.loops[loop_index].nodes.contains(&cur);
+        // It's a jump to a loop entry
         let label = loop_label(loop_index);
-        if is_continue_jump {
+        if ctx.loops[loop_index].continue_edges.contains(&jump) {
             result.push(Statement::Continue(Some(label)));
-            return None;
+            return stop;
         } else {
-            let body = structure_from_to(ctx, next, None); // TODO use better stop point
+            let brk = ctx.loops[loop_index].break_point;
+            assert!(ctx.postdominators.is_for(stop, brk),
+                    "stop point {} doesn't postdominate brk {}",
+                    stop.index(),
+                    brk.index());
+            let body = structure_from_to(ctx, next, brk);
             result.push(Statement::While {
                             label: Some(label),
                             cond: mk_variable("true".into()),
                             body: Block(vec![], body),
                             do_while: false,
                         });
-            return None; // TODO use stop point from above
+            return brk;
         }
-    } else {
-        return Some(next);
     }
+    if let Some(&loop_index) = ctx.loop_breaks.get(&jump) {
+        // It's a jump out of the loop (break)
+        let label = loop_label(loop_index);
+        result.push(Statement::Break(Some(label)));
+        return ctx.loops[loop_index].break_point;
+    }
+    next
 }
 
 fn translate_block(ctx: &mut Context,
                    result: &mut Vec<Statement>,
                    cur: Label,
-                   stop: Option<Label>)
-                   -> Option<Label> {
+                   stop: Label)
+                   -> Label {
     let mut outgoing: Map<Edge, Label> = Map::new();
     for edge in ctx.cfg.graph.edges_directed(cur, Direction::Outgoing) {
         outgoing.insert(*edge.weight(), edge.target());
@@ -139,31 +160,30 @@ fn translate_block(ctx: &mut Context,
                    outgoing.len(),
                    "basic block #{} (with condition) should have 2 successors",
                    cur.index());
-        // TODO: find join point
+        let join = ctx.postdominators.get_immediate(cur).unwrap();
+        assert!(ctx.postdominators.is_for(stop, join),
+                "stop point {} doesn't postdominate the join point {}",
+                stop.index(),
+                join.index());
         let mut then_stmts = vec![];
-        let then_block = handle_jump(ctx, &mut then_stmts, cur, outgoing[&true]);
-        then_stmts.append(&mut then_block.map_or_else(Vec::new,
-                                                      |then| structure_from_to(ctx, then, stop)));
+        let then_block = handle_jump(ctx, &mut then_stmts, Jump(cur, outgoing[&true]), stop);
+        then_stmts.append(&mut structure_from_to(ctx, then_block, join));
         let mut else_stmts = vec![];
-        let else_block = handle_jump(ctx, &mut else_stmts, cur, outgoing[&false]);
-        else_stmts.append(&mut else_block.map_or_else(Vec::new,
-                                                      |els| structure_from_to(ctx, els, stop)));
+        let else_block = handle_jump(ctx, &mut else_stmts, Jump(cur, outgoing[&false]), stop);
+        else_stmts.append(&mut structure_from_to(ctx, else_block, join));
         result.push(Statement::If {
                         cond: cond,
                         then: Block(vec![], then_stmts),
                         els: Some(Block(vec![], else_stmts)),
                     });
-        None
+        join
     } else {
         assert!(outgoing.len() <= 1,
                 "basic block #{} has too many successors",
                 cur.index());
-        if let Some(next) = outgoing.values().next() {
-            if let Some(next) = handle_jump(ctx, result, cur, *next) {
-                return Some(next);
-            }
-        }
-        None
+        let next = *outgoing.values().next().expect(&format!("basic block {} has no outgoing edges",
+                                                             cur.index()));
+        handle_jump(ctx, result, Jump(cur, next), stop)
     }
 }
 
@@ -176,18 +196,12 @@ fn collect_loops(ctx: &mut Context, filter: &Set<Label>) {
         if !is_scc_loop(ctx, &nodes) {
             continue;
         }
-        let (entry_points, exit_points) = find_entries_and_exits(ctx, &nodes);
-        // extract the entry point:
-        assert!(entry_points.len() <= 1,
-                "The loop consisting of the basic blocks {:?} has multiple entry points {:?}",
-                nodes,
-                entry_points);
-        if let Some(entry_point) = entry_points.iter().cloned().next() {
-            store_loop_in_context(ctx, &nodes, entry_point, exit_points);
-            // recursively collect the nested loops inside this loop:
-            nodes.remove(&entry_point);
-            collect_loops(ctx, &nodes);
-        }
+        let lupe = find_entries_and_exits(ctx, nodes.clone());
+        let entry = lupe.entry;
+        store_loop_in_context(ctx, lupe);
+        // recursively collect the nested loops inside this loop:
+        nodes.remove(&entry);
+        collect_loops(ctx, &nodes);
     }
 }
 
@@ -217,10 +231,10 @@ fn is_scc_loop(ctx: &Context, nodes: &Set<Label>) -> bool {
     }
 }
 
-fn find_entries_and_exits(ctx: &Context, nodes: &Set<Label>) -> (Set<Label>, Set<Label>) {
+fn find_entries_and_exits(ctx: &Context, nodes: Set<Label>) -> Loop {
     let mut entry_points = Set::new();
     let mut exit_points = Set::new();
-    for &node in nodes {
+    for &node in &nodes {
         let graph = &ctx.cfg.graph;
         let incoming_neighbors = graph.neighbors_directed(node, Direction::Incoming);
         for incoming in incoming_neighbors {
@@ -237,15 +251,58 @@ fn find_entries_and_exits(ctx: &Context, nodes: &Set<Label>) -> (Set<Label>, Set
             }
         }
     }
-    (entry_points, exit_points)
+    // extract the entry point:
+    assert!(entry_points.len() <= 1,
+            "The loop consisting of the basic blocks {:?} has multiple entry points {:?}",
+            nodes,
+            entry_points);
+    let entry_point = *entry_points.iter().next().unwrap();
+    let mut continue_edges = Set::new();
+    {
+        let graph = &ctx.cfg.graph;
+        let incoming_neighbors = graph.neighbors_directed(entry_point, Direction::Incoming);
+        for incoming in incoming_neighbors {
+            if nodes.contains(&incoming) {
+                continue_edges.insert(Jump(incoming, entry_point));
+            }
+        }
+    }
+    let break_point = find_best_break_block(ctx, &exit_points);
+    let mut break_edges = Set::new();
+    {
+        let graph = &ctx.cfg.graph;
+        let incoming_neighbors = graph.neighbors_directed(break_point, Direction::Incoming);
+        for incoming in incoming_neighbors {
+            if ctx.dominators.is_for(entry_point, break_point) {
+                break_edges.insert(Jump(incoming, break_point));
+            }
+        }
+    }
+    Loop {
+        nodes: nodes,
+        entry: entry_point,
+        continue_edges: continue_edges,
+        exits: exit_points,
+        break_point: break_point,
+        break_edges: break_edges,
+    }
 }
 
-fn store_loop_in_context(ctx: &mut Context, nodes: &Set<Label>, entry: Label, exits: Set<Label>) {
-    let lupe = Loop {
-        nodes: nodes.clone(),
-        entry: entry,
-        exits: exits,
-    };
+fn find_best_break_block(ctx: &Context, exits: &Set<Label>) -> Label {
+    let mut exits = exits.clone();
+    // TODO: This can be improved if the CFG looks like this:
+    // A ----------------> exit
+    // B --> D ----> E -==-^
+    // C ----^
+    // Here, we should pick D to be the best beak_block, not exit.
+    ctx.postdominators.get_common(&exits.iter().cloned().collect::<Vec<_>>()).unwrap()
+}
+
+fn store_loop_in_context(ctx: &mut Context, lupe: Loop) {
+    let loop_index = ctx.loops.len();
+    ctx.entry_to_loop_index.insert(lupe.entry, loop_index);
+    for edge in lupe.break_edges.clone() {
+        ctx.loop_breaks.insert(edge, loop_index);
+    }
     ctx.loops.push(lupe);
-    ctx.entry_to_loop_index.insert(entry, ctx.loops.len() - 1);
 }

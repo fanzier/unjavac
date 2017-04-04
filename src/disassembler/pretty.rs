@@ -188,6 +188,7 @@ impl Display for Literal {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match *self {
             Literal::NullReference => write!(f, "null"),
+            Literal::Boolean(b) => write!(f, "{}", b),
             Literal::Byte(i) => write!(f, "{}", i),
             Literal::Short(i) => write!(f, "{}", i),
             Literal::Integer(i) => write!(f, "{}", i),

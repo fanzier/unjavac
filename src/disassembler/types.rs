@@ -141,6 +141,7 @@ pub enum Descriptor {
 #[derive(Clone, Debug, Hash)]
 pub enum Literal {
     NullReference,
+    Boolean(bool),
     Byte(i8),
     Short(i16),
     Integer(i32),

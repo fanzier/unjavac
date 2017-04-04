@@ -40,6 +40,7 @@ use std::collections::{BTreeSet, BTreeMap};
 
 type Set<T> = BTreeSet<T>;
 type Map<K, T> = BTreeMap<K, T>;
+
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Jump(Label, Label);
 
@@ -62,8 +63,8 @@ fn loop_label(index: usize) -> String {
 }
 
 #[derive(Debug)]
-struct Context {
-    cfg: Cfg<Statement, RecExpr>,
+struct Context<'a, S: 'a, C: 'a> {
+    cfg: &'a Cfg<S, C>,
     loops: Vec<Loop>,
     entry_to_loop_index: Map<Label, usize>,
     loop_breaks: Map<Jump, usize>, // jump -> loop index
@@ -71,7 +72,7 @@ struct Context {
     postdominators: Dominators,
 }
 
-fn create_context(cfg: Cfg<Statement, RecExpr>) -> Context {
+fn create_context<S, C>(cfg: &Cfg<S, C>) -> Context<S, C> {
     let dominators = cfg.compute_dominators(false);
     let postdominators = cfg.compute_dominators(true);
     Context {
@@ -84,8 +85,55 @@ fn create_context(cfg: Cfg<Statement, RecExpr>) -> Context {
     }
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum Structured {
+    BasicBlock(Label),
+    If(Label, Vec<Structured>, Vec<Structured>),
+    Loop { id: usize, body: Vec<Structured> },
+    Break(usize),
+    Continue(usize),
+}
+
+fn structured_to_statement(cfg: &Cfg<Statement, RecExpr>, structured: Vec<Structured>) -> Vec<Statement> {
+    let mut result = vec![];
+    for stmt in structured {
+        match stmt {
+            Structured::BasicBlock(label) => {
+                result.extend(cfg.graph[label].stmts.clone());
+            },
+            Structured::If(cond, then, els) => {
+                result.push(Statement::If {
+                    cond: cfg.graph[cond].terminator.clone().unwrap(),
+                    then: Block(vec![], structured_to_statement(cfg, then)),
+                    els: Some(Block(vec![], structured_to_statement(cfg, els))),
+                })
+            },
+            Structured::Loop { id, body } => {
+                result.push(Statement::While {
+                    label: Some(loop_label(id)),
+                    cond: rec_expr(Expr::Literal(Literal::Boolean(true))),
+                    body: Block(vec![], structured_to_statement(cfg, body)),
+                    do_while: false,
+                })
+            },
+            Structured::Break(id) => {
+                result.push(Statement::Break(Some(loop_label(id))));
+            },
+            Structured::Continue(id) => {
+                result.push(Statement::Continue(Some(loop_label(id))));
+            }
+        }
+    }
+    result
+}
+
 fn structure_cfg(cfg: Cfg<Statement, RecExpr>, _: &Metadata) -> Block {
-    let mut ctx = create_context(cfg);
+    let structured = cfg_to_structured(&cfg);
+    Block(vec![], structured_to_statement(&cfg, structured))
+}
+
+fn cfg_to_structured<S: Clone, C: Clone>(cfg: &Cfg<S,C>) -> Vec<Structured> {
+    let mut ctx = create_context(&cfg);
     let all_nodes = ctx.cfg
         .graph
         .node_indices()
@@ -93,11 +141,10 @@ fn structure_cfg(cfg: Cfg<Statement, RecExpr>, _: &Metadata) -> Block {
     collect_loops(&mut ctx, &all_nodes);
     let entry = ctx.cfg.entry_point;
     let exit = ctx.cfg.exit_point;
-    let result = structure_from_to(&mut ctx, entry, exit);
-    Block(vec![], result)
+    structure_from_to(&mut ctx, entry, exit)
 }
 
-fn structure_from_to(ctx: &mut Context, mut cur: Label, stop: Label) -> Vec<Statement> {
+fn structure_from_to<S: Clone, C: Clone>(ctx: &mut Context<S, C>, mut cur: Label, stop: Label) -> Vec<Structured> {
     let mut result = vec![];
     while cur != stop && cur != ctx.cfg.exit_point {
         cur = translate_block(ctx, &mut result, cur, stop);
@@ -105,7 +152,7 @@ fn structure_from_to(ctx: &mut Context, mut cur: Label, stop: Label) -> Vec<Stat
     result
 }
 
-fn handle_jump(ctx: &mut Context, result: &mut Vec<Statement>, jump: Jump, stop: Label) -> Label {
+fn handle_jump<S: Clone, C: Clone>(ctx: &mut Context<S, C>, result: &mut Vec<Structured>, jump: Jump, stop: Label) -> Label {
     let Jump(_cur, next) = jump;
     assert!(ctx.postdominators.is_for(stop, next),
             "stop point {} doesn't postdominate next {}",
@@ -114,9 +161,8 @@ fn handle_jump(ctx: &mut Context, result: &mut Vec<Statement>, jump: Jump, stop:
 
     if let Some(&loop_index) = ctx.entry_to_loop_index.get(&next) {
         // It's a jump to a loop entry
-        let label = loop_label(loop_index);
         if ctx.loops[loop_index].continue_edges.contains(&jump) {
-            result.push(Statement::Continue(Some(label)));
+            result.push(Structured::Continue(loop_index));
             return stop;
         } else {
             let brk = ctx.loops[loop_index].break_point;
@@ -125,26 +171,23 @@ fn handle_jump(ctx: &mut Context, result: &mut Vec<Statement>, jump: Jump, stop:
                     stop.index(),
                     brk.index());
             let body = structure_from_to(ctx, next, brk);
-            result.push(Statement::While {
-                            label: Some(label),
-                            cond: mk_variable("true".into()),
-                            body: Block(vec![], body),
-                            do_while: false,
+            result.push(Structured::Loop {
+                            id: loop_index,
+                            body: body,
                         });
             return brk;
         }
     }
     if let Some(&loop_index) = ctx.loop_breaks.get(&jump) {
         // It's a jump out of the loop (break)
-        let label = loop_label(loop_index);
-        result.push(Statement::Break(Some(label)));
+        result.push(Structured::Break(loop_index));
         return ctx.loops[loop_index].break_point;
     }
     next
 }
 
-fn translate_block(ctx: &mut Context,
-                   result: &mut Vec<Statement>,
+fn translate_block<S: Clone, C: Clone>(ctx: &mut Context<S, C>,
+                   result: &mut Vec<Structured>,
                    cur: Label,
                    stop: Label)
                    -> Label {
@@ -152,10 +195,10 @@ fn translate_block(ctx: &mut Context,
     for edge in ctx.cfg.graph.edges_directed(cur, Direction::Outgoing) {
         outgoing.insert(*edge.weight(), edge.target());
     }
-    let mut bb = ctx.cfg.graph[cur].clone();
-    result.append(&mut bb.stmts);
+    let bb = ctx.cfg.graph[cur].clone();
+    result.push(Structured::BasicBlock(cur));
     let cond = bb.terminator;
-    if let Some(cond) = cond {
+    if cond.is_some() {
         assert_eq!(2,
                    outgoing.len(),
                    "basic block #{} (with condition) should have 2 successors",
@@ -171,11 +214,7 @@ fn translate_block(ctx: &mut Context,
         let mut else_stmts = vec![];
         let else_block = handle_jump(ctx, &mut else_stmts, Jump(cur, outgoing[&false]), stop);
         else_stmts.append(&mut structure_from_to(ctx, else_block, join));
-        result.push(Statement::If {
-                        cond: cond,
-                        then: Block(vec![], then_stmts),
-                        els: Some(Block(vec![], else_stmts)),
-                    });
+        result.push(Structured::If(cur, then_stmts, else_stmts));
         join
     } else {
         assert!(outgoing.len() <= 1,
@@ -187,7 +226,7 @@ fn translate_block(ctx: &mut Context,
     }
 }
 
-fn collect_loops(ctx: &mut Context, filter: &Set<Label>) {
+fn collect_loops<S, C>(ctx: &mut Context<S, C>, filter: &Set<Label>) {
     if filter.is_empty() {
         return;
     }
@@ -205,7 +244,7 @@ fn collect_loops(ctx: &mut Context, filter: &Set<Label>) {
     }
 }
 
-fn compute_strongly_connected_components(graph: &CfgGraph<Statement, RecExpr>,
+fn compute_strongly_connected_components<S, C>(graph: &CfgGraph<S, C>,
                                          filter: &Set<Label>)
                                          -> Vec<Set<Label>> {
     let filtered = NodeFiltered(graph, |n| filter.contains(&n));
@@ -216,7 +255,7 @@ fn compute_strongly_connected_components(graph: &CfgGraph<Statement, RecExpr>,
     .collect::<Vec<_>>()
 }
 
-fn is_scc_loop(ctx: &Context, nodes: &Set<Label>) -> bool {
+fn is_scc_loop<S, C>(ctx: &Context<S, C>, nodes: &Set<Label>) -> bool {
     if nodes.is_empty() {
         return false;
     }
@@ -231,7 +270,7 @@ fn is_scc_loop(ctx: &Context, nodes: &Set<Label>) -> bool {
     }
 }
 
-fn find_entries_and_exits(ctx: &Context, nodes: Set<Label>) -> Loop {
+fn find_entries_and_exits<S, C>(ctx: &Context<S, C>, nodes: Set<Label>) -> Loop {
     let mut entry_points = Set::new();
     let mut exit_points = Set::new();
     for &node in &nodes {
@@ -288,8 +327,8 @@ fn find_entries_and_exits(ctx: &Context, nodes: Set<Label>) -> Loop {
     }
 }
 
-fn find_best_break_block(ctx: &Context, exits: &Set<Label>) -> Label {
-    let mut exits = exits.clone();
+fn find_best_break_block<S, C>(ctx: &Context<S, C>, exits: &Set<Label>) -> Label {
+    let exits = exits.clone();
     // TODO: This can be improved if the CFG looks like this:
     // A ----------------> exit
     // B --> D ----> E -==-^
@@ -298,7 +337,7 @@ fn find_best_break_block(ctx: &Context, exits: &Set<Label>) -> Label {
     ctx.postdominators.get_common(&exits.iter().cloned().collect::<Vec<_>>()).unwrap()
 }
 
-fn store_loop_in_context(ctx: &mut Context, lupe: Loop) {
+fn store_loop_in_context<S, C>(ctx: &mut Context<S, C>, lupe: Loop) {
     let loop_index = ctx.loops.len();
     ctx.entry_to_loop_index.insert(lupe.entry, loop_index);
     for edge in lupe.break_edges.clone() {

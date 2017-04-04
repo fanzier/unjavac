@@ -1,10 +1,10 @@
 [package]
-name = "jvdcmp"
+name = "unjavac"
 version = "0.1.0"
 authors = ["Fabian Zaiser <fabian.zaiser@gmail.com>"]
 
 [[bin]]
-name = "jvdcmp"
+name = "unjavac"
 doc = false
 
 [dependencies]

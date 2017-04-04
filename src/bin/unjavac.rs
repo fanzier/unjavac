@@ -1,13 +1,13 @@
 extern crate clap;
-extern crate jvdcmp;
+extern crate unjavac;
 
-use jvdcmp::classfile::parser::*;
-use jvdcmp::disassembler::transform::*;
-use jvdcmp::decompiler::decompile::*;
+use unjavac::classfile::parser::*;
+use unjavac::disassembler::transform::*;
+use unjavac::decompiler::decompile::*;
 
 fn main() {
     use std::fs::File;
-    let matches = clap::App::new("jvdcmp")
+    let matches = clap::App::new("unjavac")
         .about("Decompiles Java .class files")
         .arg(clap::Arg::with_name("INPUT")
                  .help("Sets the input class file to be decompiled")

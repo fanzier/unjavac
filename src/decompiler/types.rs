@@ -22,16 +22,23 @@ pub enum Expr<E> {
     Assignable(Box<Assignable>),
     UnaryOp(UnOp, E),
     BinaryOp(BinOp, E, E),
-    IfThenElse { cond: E, then: E, els: E },
+    IfThenElse {
+        cond: E,
+        then: E,
+        els: E,
+    },
     Invoke(Option<E>, MethodRef, ClassRef, Vec<E>),
     Assign {
         to: Box<Assignable>,
         op: Option<BinOp>,
         from: E,
     },
-    New { class: Type, args: Vec<E> },
+    New {
+        class: Type,
+        args: Vec<E>,
+    },
     This,
-    Super, 
+    Super,
     // TODO this(...), super(...)
 }
 
@@ -53,7 +60,10 @@ pub enum Assignable {
         class: ClassRef,
         field: FieldRef,
     },
-    ArrayAccess { array: RecExpr, index: RecExpr },
+    ArrayAccess {
+        array: RecExpr,
+        index: RecExpr,
+    },
 }
 
 #[derive(Copy, Clone, Debug, Hash)]
@@ -171,7 +181,10 @@ pub struct LocalDecl {
 
 #[derive(Clone, Debug, Hash)]
 pub enum ForControl {
-    Iteration { elem: LocalDecl, container: RecExpr },
+    Iteration {
+        elem: LocalDecl,
+        container: RecExpr,
+    },
     General {
         init: LocalDecl,
         cond: RecExpr,
@@ -197,7 +210,6 @@ pub enum ClassDecl<C> {
 pub enum Catch {
     // TODO
 }
-
 
 #[derive(Clone, Debug, Hash)]
 pub struct FieldDecl {

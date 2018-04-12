@@ -12,10 +12,20 @@ pub struct ConstantPool {
 pub enum ConstantInfo {
     Utf8(String),
     Integer(i32),
-    Class { name_index: u16 },
-    String { string_index: u16 },
-    FieldRef { class_index: u16, name_index: u16 },
-    MethodRef { class_index: u16, name_index: u16 },
+    Class {
+        name_index: u16,
+    },
+    String {
+        string_index: u16,
+    },
+    FieldRef {
+        class_index: u16,
+        name_index: u16,
+    },
+    MethodRef {
+        class_index: u16,
+        name_index: u16,
+    },
     NameAndType {
         name_index: u16,
         descriptor_index: u16,
@@ -39,8 +49,12 @@ pub fn parse_constant_pool<R: Read>(input: &mut R) -> Result<Vec<ConstantInfo>> 
                 let unsigned = input.read_u32::<BigEndian>()?;
                 ConstantInfo::Integer(unsigned as i32)
             }
-            7 => ConstantInfo::Class { name_index: input.read_u16::<BigEndian>()? },
-            8 => ConstantInfo::String { string_index: input.read_u16::<BigEndian>()? },
+            7 => ConstantInfo::Class {
+                name_index: input.read_u16::<BigEndian>()?,
+            },
+            8 => ConstantInfo::String {
+                string_index: input.read_u16::<BigEndian>()?,
+            },
             9 => {
                 let class_index = input.read_u16::<BigEndian>()?;
                 let name_index = input.read_u16::<BigEndian>()?;
@@ -80,11 +94,10 @@ impl ConstantPool {
     pub fn lookup_string(&self, index: u16) -> &str {
         match *self.lookup(index) {
             ConstantInfo::Utf8(ref s) => s,
-            ref constant_info => {
-                panic!("Error: Expected a UTF8 string looking up {} but found: {:?}",
-                       index,
-                       constant_info)
-            }
+            ref constant_info => panic!(
+                "Error: Expected a UTF8 string looking up {} but found: {:?}",
+                index, constant_info
+            ),
         }
     }
 }

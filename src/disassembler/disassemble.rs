@@ -1,8 +1,8 @@
 pub use classfile::parser::*;
 pub use disassembler::types::*;
 
-use byteorder::{ReadBytesExt, BigEndian};
-use std::io::{Result, Read};
+use byteorder::{BigEndian, ReadBytesExt};
+use std::io::{Read, Result};
 
 #[derive(Debug)]
 pub struct CodeAttribute {
@@ -37,20 +37,20 @@ pub fn parse_code_attribute(bytes: &[u8]) -> Result<CodeAttribute> {
         let handler_pc = input.read_u16::<BigEndian>()?;
         let catch_type = input.read_u16::<BigEndian>()?;
         exception_table.push(ExceptionTableEntry {
-                                 start_pc: start_pc,
-                                 end_pc: end_pc,
-                                 handler_pc: handler_pc,
-                                 catch_type: catch_type,
-                             });
+            start_pc: start_pc,
+            end_pc: end_pc,
+            handler_pc: handler_pc,
+            catch_type: catch_type,
+        });
     }
     let attributes = parse_attributes(&mut input)?;
     Ok(CodeAttribute {
-           max_stack: max_stack,
-           max_local: max_local,
-           code: code,
-           exception_table: exception_table,
-           attributes: attributes,
-       })
+        max_stack: max_stack,
+        max_local: max_local,
+        code: code,
+        exception_table: exception_table,
+        attributes: attributes,
+    })
 }
 
 pub fn disassemble(code: &CodeAttribute) -> Code {
@@ -63,5 +63,7 @@ pub fn disassemble(code: &CodeAttribute) -> Code {
         let instruction = decode_instruction(opcode, pc as u16, &mut bytes);
         instructions.push((pc as u16, instruction));
     }
-    Code { instructions: instructions }
+    Code {
+        instructions: instructions,
+    }
 }

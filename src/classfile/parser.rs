@@ -16,17 +16,19 @@ pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let fields = parse_fields(input)?;
     let methods = parse_methods(input)?;
     Ok(ClassFile {
-           magic: magic,
-           minor_version: minor_version,
-           major_version: major_version,
-           constant_pool: ConstantPool { constants: constant_pool },
-           access_flags: access_flags,
-           this_class: this_class,
-           super_class: super_class,
-           interfaces: interfaces,
-           fields: fields,
-           methods: methods,
-       })
+        magic: magic,
+        minor_version: minor_version,
+        major_version: major_version,
+        constant_pool: ConstantPool {
+            constants: constant_pool,
+        },
+        access_flags: access_flags,
+        this_class: this_class,
+        super_class: super_class,
+        interfaces: interfaces,
+        fields: fields,
+        methods: methods,
+    })
 }
 
 #[derive(Debug)]

@@ -3,7 +3,8 @@ use std::fmt::*;
 use pretty::*;
 
 impl<C> Display for CompilationUnit<C>
-    where C: PrettyWith<CompilationUnit<C>>
+where
+    C: PrettyWith<CompilationUnit<C>>,
 {
     fn fmt(&self, f: &mut Formatter) -> Result {
         writeln!(f, "{}", self.pretty().render_string(120))
@@ -11,13 +12,15 @@ impl<C> Display for CompilationUnit<C>
 }
 
 impl<C, T> PrettyWith<T> for CompilationUnit<C>
-    where C: PrettyWith<CompilationUnit<C>>
+where
+    C: PrettyWith<CompilationUnit<C>>,
 {
     fn pretty_with(&self, _: &T) -> Doc {
         let modifiers = self.modifiers.pretty();
         let first = modifiers + format!(" {} {} {{", self.typ, self.name);
-        let declarations =
-            self.declarations.iter().map(|declaration| declaration.pretty_with(self));
+        let declarations = self.declarations
+            .iter()
+            .map(|declaration| declaration.pretty_with(self));
         let declarations = newline() + intersperse(declarations, newline());
         first + declarations.nest(4) + newline() + '}'
     }
@@ -79,11 +82,13 @@ impl Display for Type {
 
 impl PrettyWith<str> for Signature {
     fn pretty_with(&self, name: &str) -> Doc {
-        let params = self.parameters.iter().map(|&(ref name, ref typ)| if name.is_empty() {
-                                                    doc(typ)
-                                                } else {
-                                                    doc(typ) + ' ' + name
-                                                });
+        let params = self.parameters.iter().map(|&(ref name, ref typ)| {
+            if name.is_empty() {
+                doc(typ)
+            } else {
+                doc(typ) + ' ' + name
+            }
+        });
         group(doc(&self.return_type) + spaceline() + name + tupled(params))
     }
 }
@@ -95,7 +100,8 @@ impl Display for Signature {
 }
 
 impl<T, C> PrettyWith<CompilationUnit<T>> for Declaration<C>
-    where C: PrettyWith<CompilationUnit<T>>
+where
+    C: PrettyWith<CompilationUnit<T>>,
 {
     fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
@@ -106,7 +112,8 @@ impl<T, C> PrettyWith<CompilationUnit<T>> for Declaration<C>
 }
 
 impl<C, T> PrettyWith<CompilationUnit<T>> for Method<C>
-    where C: PrettyWith<CompilationUnit<T>>
+where
+    C: PrettyWith<CompilationUnit<T>>,
 {
     fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         let mut result = self.modifiers.pretty() + ' ';
@@ -125,9 +132,8 @@ impl<C, T> PrettyWith<CompilationUnit<T>> for Method<C>
 impl<T> PrettyWith<CompilationUnit<T>> for Code {
     fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         let docs = self.instructions.iter().map(|&(pc, ref instruction)| {
-                                                    doc(format!("{:#6X}: ", pc)) +
-                                                    instruction.pretty_with(unit)
-                                                });
+            doc(format!("{:#6X}: ", pc)) + instruction.pretty_with(unit)
+        });
         intersperse(docs, newline())
     }
 }
@@ -139,9 +145,10 @@ impl<T> PrettyWith<CompilationUnit<T>> for Instruction {
             Instruction::Load(ref rvalue) => doc("load ") + rvalue.pretty_with(unit),
             Instruction::Store(ref lvalue) => doc("store ") + lvalue.pretty_with(unit),
             Instruction::Invoke(ref invoke) => invoke.pretty_with(unit),
-            Instruction::Return(val) => {
-                doc(format!("return {}", if val.is_some() { "value" } else { "void" }))
-            }
+            Instruction::Return(val) => doc(format!(
+                "return {}",
+                if val.is_some() { "value" } else { "void" }
+            )),
             Instruction::Jump(ref jump) => doc(format!("{}", jump)),
             Instruction::Arithm(ref arithm) => doc(format!("{}", arithm)),
             _ => unimplemented!(),
@@ -169,18 +176,20 @@ impl Display for Instruction {
 impl Display for Kind {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use self::Kind::*;
-        write!(f,
-               "{}",
-               match *self {
-                   B => "byte",
-                   C => "char",
-                   S => "short",
-                   I => "int",
-                   L => "long",
-                   F => "float",
-                   D => "double",
-                   A => "reference",
-               })
+        write!(
+            f,
+            "{}",
+            match *self {
+                B => "byte",
+                C => "char",
+                S => "short",
+                I => "int",
+                L => "long",
+                F => "float",
+                D => "double",
+                A => "reference",
+            }
+        )
     }
 }
 
@@ -206,12 +215,15 @@ impl Display for LValue {
             LValue::Local(i) => write!(f, "local_{}", i),
             LValue::Stack(i) => write!(f, "stack[{}]", i),
             LValue::StaticField { field_ref } => write!(f, "static field {}", field_ref),
-            LValue::InstanceField { object_stack_index, field_ref } => {
-                write!(f,
-                       " field {} of stack[{}]",
-                       field_ref,
-                       object_stack_index + 1)
-            }
+            LValue::InstanceField {
+                object_stack_index,
+                field_ref,
+            } => write!(
+                f,
+                " field {} of stack[{}]",
+                field_ref,
+                object_stack_index + 1
+            ),
         }
     }
 }
@@ -219,24 +231,25 @@ impl Display for LValue {
 impl<T> PrettyWith<CompilationUnit<T>> for LValue {
     fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
-                LValue::Local(i) => format!("local_{}", i),
-                LValue::Stack(i) => format!("stack[{}]", i),
-                LValue::StaticField { field_ref } => {
-                    let field = &unit.metadata.field_refs[&field_ref];
-                    let class = &unit.metadata.class_refs[&field.class_ref];
-                    format!("{}.{}: {}", &class.0, field.name, field.typ)
-                }
-                LValue::InstanceField { object_stack_index, field_ref } => {
-                    let field = &unit.metadata.field_refs[&field_ref];
-                    let class = &unit.metadata.class_refs[&field.class_ref];
-                    format!("(stack[{}]: {}).{}: {}",
-                            object_stack_index,
-                            &class.0,
-                            field.name,
-                            field.typ)
-                }
+            LValue::Local(i) => format!("local_{}", i),
+            LValue::Stack(i) => format!("stack[{}]", i),
+            LValue::StaticField { field_ref } => {
+                let field = &unit.metadata.field_refs[&field_ref];
+                let class = &unit.metadata.class_refs[&field.class_ref];
+                format!("{}.{}: {}", &class.0, field.name, field.typ)
             }
-            .into()
+            LValue::InstanceField {
+                object_stack_index,
+                field_ref,
+            } => {
+                let field = &unit.metadata.field_refs[&field_ref];
+                let class = &unit.metadata.class_refs[&field.class_ref];
+                format!(
+                    "(stack[{}]: {}).{}: {}",
+                    object_stack_index, &class.0, field.name, field.typ
+                )
+            }
+        }.into()
     }
 }
 
@@ -253,14 +266,13 @@ impl Display for RValue {
 impl<T> PrettyWith<CompilationUnit<T>> for RValue {
     fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
         match *self {
-                RValue::Constant(ref constant) => format!("{}", constant),
-                RValue::ConstantRef { const_ref } => {
-                    let constant = &unit.metadata.literals[&const_ref];
-                    format!("{}", constant)
-                }
-                RValue::LValue(ref lvalue) => format!("{}", lvalue),
+            RValue::Constant(ref constant) => format!("{}", constant),
+            RValue::ConstantRef { const_ref } => {
+                let constant = &unit.metadata.literals[&const_ref];
+                format!("{}", constant)
             }
-            .into()
+            RValue::LValue(ref lvalue) => format!("{}", lvalue),
+        }.into()
     }
 }
 
@@ -339,9 +351,10 @@ impl Display for Arithm {
         match *self {
             Arithm::UnaryOp(unary_op) => write!(f, "{}", unary_op),
             Arithm::BinaryOp(binary_op) => write!(f, "{}", binary_op),
-            Arithm::IncreaseLocal { local_index, increase } => {
-                write!(f, "increase local_{} by {}", local_index, increase)
-            }
+            Arithm::IncreaseLocal {
+                local_index,
+                increase,
+            } => write!(f, "increase local_{} by {}", local_index, increase),
         }
     }
 }
@@ -357,20 +370,22 @@ impl Display for UnaryOp {
 impl Display for BinaryOp {
     fn fmt(&self, f: &mut Formatter) -> Result {
         use self::BinaryOp::*;
-        write!(f,
-               "{}",
-               match *self {
-                   Add => "add",
-                   Sub => "sub",
-                   Mul => "mul",
-                   Div => "div",
-                   Rem => "rem",
-                   Shl => "shl",
-                   Shr => "shr",
-                   Ushr => "ushr",
-                   And => "and",
-                   Or => "or",
-                   Xor => "xor",
-               })
+        write!(
+            f,
+            "{}",
+            match *self {
+                Add => "add",
+                Sub => "sub",
+                Mul => "mul",
+                Div => "div",
+                Rem => "rem",
+                Shl => "shl",
+                Shr => "shr",
+                Ushr => "ushr",
+                And => "and",
+                Or => "or",
+                Xor => "xor",
+            }
+        )
     }
 }

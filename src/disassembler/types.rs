@@ -17,12 +17,16 @@ impl<C> CompilationUnit<C> {
     }
 
     pub fn map<F, D>(mut self, mut f: F) -> CompilationUnit<D>
-        where F: FnMut(C, &Metadata) -> D
+    where
+        F: FnMut(C, &Metadata) -> D,
     {
         let declarations = {
             let declarations = &mut self.declarations;
             let metadata = &self.metadata;
-            declarations.drain(..).map(|d| d.map(|c| f(c, metadata))).collect::<Vec<_>>()
+            declarations
+                .drain(..)
+                .map(|d| d.map(|c| f(c, metadata)))
+                .collect::<Vec<_>>()
         };
         CompilationUnit {
             typ: self.typ,
@@ -80,18 +84,22 @@ pub enum Declaration<C> {
 
 impl<C> Declaration<C> {
     pub fn map<F, D>(self, f: F) -> Declaration<D>
-        where F: FnMut(C) -> D
+    where
+        F: FnMut(C) -> D,
     {
         match self {
             Declaration::Field(f) => Declaration::Field(f),
-            Declaration::Method(Method { modifiers, name, signature, code }) => {
-                Declaration::Method(Method {
-                                        modifiers: modifiers,
-                                        name: name,
-                                        signature: signature,
-                                        code: code.map(f),
-                                    })
-            }
+            Declaration::Method(Method {
+                modifiers,
+                name,
+                signature,
+                code,
+            }) => Declaration::Method(Method {
+                modifiers: modifiers,
+                name: name,
+                signature: signature,
+                code: code.map(f),
+            }),
         }
     }
 }

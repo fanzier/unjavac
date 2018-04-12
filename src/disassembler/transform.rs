@@ -18,7 +18,9 @@ pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
     };
     unit.modifiers = class_flags_to_modifiers(&class_file.access_flags);
     process_constant_pool(&mut unit, &class_file.constant_pool);
-    unit.name = unit.metadata.class_refs[&class_file.this_class].0.to_owned();
+    unit.name = unit.metadata.class_refs[&class_file.this_class]
+        .0
+        .to_owned();
     process_methods(&mut unit, &class_file.methods);
     unit
 }
@@ -58,47 +60,66 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &Const
             }
             ConstantInfo::Class { name_index } => {
                 let name = constant_pool.lookup_string(name_index);
-                unit.metadata.class_refs.insert(index, ClassRef(name.replace('/', ".")));
+                unit.metadata
+                    .class_refs
+                    .insert(index, ClassRef(name.replace('/', ".")));
             }
             ConstantInfo::String { string_index } => {
                 let string = constant_pool.lookup_string(string_index);
-                unit.metadata.literals.insert(index, Literal::String(string.to_owned()));
+                unit.metadata
+                    .literals
+                    .insert(index, Literal::String(string.to_owned()));
             }
-            ConstantInfo::FieldRef { class_index, name_index } => {
+            ConstantInfo::FieldRef {
+                class_index,
+                name_index,
+            } => {
                 let (name_index, descriptor_index) = match *constant_pool.lookup(name_index) {
-                    ConstantInfo::NameAndType { name_index, descriptor_index } => {
-                        (name_index, descriptor_index)
-                    }
+                    ConstantInfo::NameAndType {
+                        name_index,
+                        descriptor_index,
+                    } => (name_index, descriptor_index),
                     ref c => panic!("Index doesn't point to a NameAndType but to: {:#?}", c),
                 };
                 let name = constant_pool.lookup_string(name_index).to_owned();
                 let descriptor = constant_pool.lookup_string(descriptor_index);
                 let typ = descriptor_to_type(&mut descriptor.chars());
-                unit.metadata.field_refs.insert(index,
-                                                FieldRef {
-                                                    class_ref: class_index,
-                                                    name: name,
-                                                    typ: typ,
-                                                });
+                unit.metadata.field_refs.insert(
+                    index,
+                    FieldRef {
+                        class_ref: class_index,
+                        name: name,
+                        typ: typ,
+                    },
+                );
             }
-            ConstantInfo::MethodRef { class_index, name_index } => {
+            ConstantInfo::MethodRef {
+                class_index,
+                name_index,
+            } => {
                 let (name_index, descriptor_index) = match *constant_pool.lookup(name_index) {
-                    ConstantInfo::NameAndType { name_index, descriptor_index } => {
-                        (name_index, descriptor_index)
-                    }
+                    ConstantInfo::NameAndType {
+                        name_index,
+                        descriptor_index,
+                    } => (name_index, descriptor_index),
                     ref c => panic!("Index doesn't point to a NameAndType but to: {:#?}", c),
                 };
                 let name = constant_pool.lookup_string(name_index).to_owned();
                 let descriptor = constant_pool.lookup_string(descriptor_index);
                 let signature = descriptor_to_signature(descriptor);
-                unit.metadata.method_refs.insert(index,
-                                                 MethodRef {
-                                                     class_ref: class_index,
-                                                     name: name,
-                                                     signature: signature,
-                                                 });
+                unit.metadata.method_refs.insert(
+                    index,
+                    MethodRef {
+                        class_ref: class_index,
+                        name: name,
+                        signature: signature,
+                    },
+                );
             }
-            ConstantInfo::NameAndType { name_index, descriptor_index } => {
+            ConstantInfo::NameAndType {
+                name_index,
+                descriptor_index,
+            } => {
                 let name = constant_pool.lookup_string(name_index).to_owned();
                 let descriptor_string = constant_pool.lookup_string(descriptor_index);
                 let descriptor = if descriptor_string.starts_with('(') {
@@ -106,11 +127,13 @@ fn process_constant_pool<C>(unit: &mut CompilationUnit<C>, constant_pool: &Const
                 } else {
                     Descriptor::Type(descriptor_to_type(&mut descriptor_string.chars()))
                 };
-                unit.metadata.name_refs.insert(index,
-                                               NameRef {
-                                                   name: name,
-                                                   typ: descriptor,
-                                               });
+                unit.metadata.name_refs.insert(
+                    index,
+                    NameRef {
+                        name: name,
+                        typ: descriptor,
+                    },
+                );
             }
         }
     }
@@ -136,11 +159,11 @@ fn transform_method<C>(unit: &CompilationUnit<C>, method: &MethodInfo) -> Declar
     }
     let signature = descriptor_to_signature(unit.lookup_string(method.descriptor_index));
     Declaration::Method(Method {
-                            modifiers: method_flags_to_modifiers(&method.access_flags),
-                            name: unit.lookup_string(method.name_index).to_owned(),
-                            signature: signature,
-                            code: code,
-                        })
+        modifiers: method_flags_to_modifiers(&method.access_flags),
+        name: unit.lookup_string(method.name_index).to_owned(),
+        signature: signature,
+        code: code,
+    })
 }
 
 fn method_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
@@ -181,8 +204,10 @@ fn descriptor_to_signature(descriptor: &str) -> Signature {
     let mut params = vec![];
     let next = chars.next().unwrap();
     if next != '(' {
-        panic!("Expected open paren at beginning of method descriptor: {:?}",
-               descriptor);
+        panic!(
+            "Expected open paren at beginning of method descriptor: {:?}",
+            descriptor
+        );
     }
     while *chars.peek().unwrap() != ')' {
         params.push(("".to_owned(), descriptor_to_type(&mut chars)));

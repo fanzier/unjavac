@@ -30,7 +30,8 @@ pub enum Instruction {
 }
 
 pub fn decode_instruction<I>(opcode: u8, pc: u16, iter: &mut I) -> Instruction
-    where I: Iterator<Item = u8>
+where
+    I: Iterator<Item = u8>,
 {
     use self::Instruction::*;
     println!("Decoding opcode 0x{:x}.", opcode);
@@ -74,7 +75,9 @@ pub type StackVarId = isize;
 pub enum LValue {
     Local(usize),
     Stack(StackVarId),
-    StaticField { field_ref: u16 },
+    StaticField {
+        field_ref: u16,
+    },
     InstanceField {
         object_stack_index: StackVarId,
         field_ref: u16,
@@ -93,7 +96,9 @@ pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> RValue {
         0x02...0x08 => RValue::Constant(Literal::Integer(opcode as i32 - 0x03)),
         0x12 => {
             let index = iter.next().unwrap();
-            RValue::ConstantRef { const_ref: index as u16 }
+            RValue::ConstantRef {
+                const_ref: index as u16,
+            }
         }
         0x1a...0x1d => RValue::LValue(LValue::Local((opcode - 0x1a) as usize)),
         0x2a...0x2d => RValue::LValue(LValue::Local((opcode - 0x2a) as usize)),
@@ -106,9 +111,9 @@ pub fn decode_load<I: Iterator<Item = u8>>(opcode: u8, iter: &mut I) -> RValue {
             //getfield
             let index = read_u16_index(iter);
             RValue::LValue(LValue::InstanceField {
-                               object_stack_index: -1,
-                               field_ref: index,
-                           })
+                object_stack_index: -1,
+                field_ref: index,
+            })
         }
         _ => unimplemented!(),
     }

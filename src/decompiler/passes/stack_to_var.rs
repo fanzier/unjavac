@@ -53,63 +53,77 @@ impl StackLayout {
             Instruction::Load(ref rvalue) => {
                 let expr = self.make_stack_vars_rvalue(rvalue, metadata);
                 let top = self.push();
-                vec![stmt_expr(Expr::Assign {
-                                   to: Box::new(Assignable::Variable(stack(top), 0)),
-                                   op: None,
-                                   from: rec_expr(expr),
-                               })]
+                vec![
+                    stmt_expr(Expr::Assign {
+                        to: Box::new(Assignable::Variable(stack(top), 0)),
+                        op: None,
+                        from: rec_expr(expr),
+                    }),
+                ]
             }
             Instruction::Store(ref to) => {
                 let assignable = self.make_stack_vars_lvalue(to, metadata);
                 let top = self.pop();
-                vec![stmt_expr(Expr::Assign {
-                                   to: Box::new(assignable),
-                                   op: None,
-                                   from: mk_variable(stack(top)),
-                               })]
+                vec![
+                    stmt_expr(Expr::Assign {
+                        to: Box::new(assignable),
+                        op: None,
+                        from: mk_variable(stack(top)),
+                    }),
+                ]
             }
-            Instruction::Arithm(ref arithm) => {
-                match *arithm {
-                    Arithm::UnaryOp(op) => {
-                        let v = self.pop();
-                        let res = self.push();
-                        let to = Box::new(Assignable::Variable(stack(res), 0));
-                        let from = rec_expr(Expr::UnaryOp(convert_un_op(op),
-                                                          mk_variable(stack(v))));
-                        vec![stmt_expr(Expr::Assign {
-                                           to: to,
-                                           op: None,
-                                           from: from,
-                                       })]
-                    }
-                    Arithm::BinaryOp(op) => {
-                        let w = self.pop();
-                        let v = self.pop();
-                        let res = self.push();
-                        let to = Box::new(Assignable::Variable(stack(res), 0));
-                        let from = rec_expr(Expr::BinaryOp(convert_bin_op(op),
-                                                           mk_variable(stack(v)),
-                                                           mk_variable(stack(w))));
-                        vec![stmt_expr(Expr::Assign {
-                                           to: to,
-                                           op: None,
-                                           from: from,
-                                       })]
-                    }
-                    Arithm::IncreaseLocal { local_index, increase } => {
-                        let to = Box::new(Assignable::Variable(local(local_index as usize), 0));
-                        let increase = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
-                        let from = rec_expr(Expr::BinaryOp(BinOp::Add,
-                                                           rec_expr(Expr::Assignable(to.clone())),
-                                                           increase));
-                        vec![stmt_expr(Expr::Assign {
-                                           to: to,
-                                           op: None,
-                                           from: from,
-                                       })]
-                    }
+            Instruction::Arithm(ref arithm) => match *arithm {
+                Arithm::UnaryOp(op) => {
+                    let v = self.pop();
+                    let res = self.push();
+                    let to = Box::new(Assignable::Variable(stack(res), 0));
+                    let from = rec_expr(Expr::UnaryOp(convert_un_op(op), mk_variable(stack(v))));
+                    vec![
+                        stmt_expr(Expr::Assign {
+                            to: to,
+                            op: None,
+                            from: from,
+                        }),
+                    ]
                 }
-            }
+                Arithm::BinaryOp(op) => {
+                    let w = self.pop();
+                    let v = self.pop();
+                    let res = self.push();
+                    let to = Box::new(Assignable::Variable(stack(res), 0));
+                    let from = rec_expr(Expr::BinaryOp(
+                        convert_bin_op(op),
+                        mk_variable(stack(v)),
+                        mk_variable(stack(w)),
+                    ));
+                    vec![
+                        stmt_expr(Expr::Assign {
+                            to: to,
+                            op: None,
+                            from: from,
+                        }),
+                    ]
+                }
+                Arithm::IncreaseLocal {
+                    local_index,
+                    increase,
+                } => {
+                    let to = Box::new(Assignable::Variable(local(local_index as usize), 0));
+                    let increase = rec_expr(Expr::Literal(Literal::Integer(increase as i32)));
+                    let from = rec_expr(Expr::BinaryOp(
+                        BinOp::Add,
+                        rec_expr(Expr::Assignable(to.clone())),
+                        increase,
+                    ));
+                    vec![
+                        stmt_expr(Expr::Assign {
+                            to: to,
+                            op: None,
+                            from: from,
+                        }),
+                    ]
+                }
+            },
             Instruction::TypeConv(_) => unimplemented!(),
             Instruction::ObjManip(_) => unimplemented!(),
             Instruction::StackManage(_) => unimplemented!(),
@@ -127,29 +141,34 @@ impl StackLayout {
                     }
                     _ => None,
                 };
-                let method_call = Expr::Invoke(this_object,
-                                               method_ref.clone(),
-                                               class_ref.clone(),
-                                               args_range.into_iter()
-                                                   .map(|i| mk_variable(stack(i)))
-                                                   .collect::<Vec<_>>());
+                let method_call = Expr::Invoke(
+                    this_object,
+                    method_ref.clone(),
+                    class_ref.clone(),
+                    args_range
+                        .into_iter()
+                        .map(|i| mk_variable(stack(i)))
+                        .collect::<Vec<_>>(),
+                );
                 if method_ref.signature.return_type == Type::Void {
                     vec![stmt_expr(method_call)]
                 } else {
                     let result = self.push();
-                    vec![stmt_expr(Expr::Assign {
-                                       from: rec_expr(method_call),
-                                       op: None,
-                                       to: Box::new(Assignable::Variable(stack(result), 0)),
-                                   })]
+                    vec![
+                        stmt_expr(Expr::Assign {
+                            from: rec_expr(method_call),
+                            op: None,
+                            to: Box::new(Assignable::Variable(stack(result), 0)),
+                        }),
+                    ]
                 }
             }
             Instruction::Throw => unimplemented!(),
             Instruction::Return(value) => {
                 let value = value.map(|_| {
-                                          let top = self.pop();
-                                          mk_variable(stack(top))
-                                      });
+                    let top = self.pop();
+                    mk_variable(stack(top))
+                });
                 vec![Statement::Return(value)]
             }
             Instruction::Synchronized(_) => unimplemented!(),
@@ -186,7 +205,10 @@ impl StackLayout {
                     field: field.clone(),
                 }
             }
-            LValue::InstanceField { object_stack_index, field_ref } => {
+            LValue::InstanceField {
+                object_stack_index,
+                field_ref,
+            } => {
                 let field = &metadata.field_refs[&field_ref];
                 let class = &metadata.class_refs[&field.class_ref];
                 let index = self.get(object_stack_index);
@@ -206,17 +228,20 @@ impl StackLayout {
         match *cond {
             JumpCondition::CmpZero(ord) => {
                 let v = self.pop();
-                Expr::BinaryOp(BinOp::Cmp(ord),
-                               mk_variable(stack(v)),
-                               rec_expr(Expr::Literal(Literal::Integer(0))))
+                Expr::BinaryOp(
+                    BinOp::Cmp(ord),
+                    mk_variable(stack(v)),
+                    rec_expr(Expr::Literal(Literal::Integer(0))),
+                )
             }
-            JumpCondition::Cmp(ord) |
-            JumpCondition::CmpRef(ord) => {
+            JumpCondition::Cmp(ord) | JumpCondition::CmpRef(ord) => {
                 let w = self.pop();
                 let v = self.pop();
-                Expr::BinaryOp(BinOp::Cmp(ord),
-                               mk_variable(stack(v)),
-                               mk_variable(stack(w)))
+                Expr::BinaryOp(
+                    BinOp::Cmp(ord),
+                    mk_variable(stack(v)),
+                    mk_variable(stack(w)),
+                )
             }
         }
     }
@@ -234,8 +259,9 @@ fn param(i: usize) -> String {
     format!("param_{}", i)
 }
 
-pub fn stack_to_vars(unit: CompilationUnit<Cfg<Instruction, JumpCondition>>)
-                     -> CompilationUnit<Cfg<Statement, RecExpr>> {
+pub fn stack_to_vars(
+    unit: CompilationUnit<Cfg<Instruction, JumpCondition>>,
+) -> CompilationUnit<Cfg<Statement, RecExpr>> {
     let mut unit = unit.map(transform);
     for declaration in &mut unit.declarations {
         match *declaration {
@@ -248,9 +274,10 @@ pub fn stack_to_vars(unit: CompilationUnit<Cfg<Instruction, JumpCondition>>)
     unit
 }
 
-fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
-             metadata: &Metadata)
-             -> Cfg<Statement, RecExpr> {
+fn transform(
+    mut cfg: Cfg<Instruction, JumpCondition>,
+    metadata: &Metadata,
+) -> Cfg<Statement, RecExpr> {
     use petgraph::visit::Dfs;
     let mut stack_at_bb = vec![None; cfg.graph.node_count()];
     stack_at_bb[0] = Some(StackLayout::new());
@@ -272,12 +299,14 @@ fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
             let stack_at_w = &mut stack_at_bb[w.index()];
             if let Some(stack_at_w) = *stack_at_w {
                 // Assert that all paths to w result in the same stack size:
-                assert_eq!(stack,
-                           stack_at_w,
-                           "expected stack {:?} at beginning of node #{} but found {:?}",
-                           stack,
-                           w.index(),
-                           stack_at_w);
+                assert_eq!(
+                    stack,
+                    stack_at_w,
+                    "expected stack {:?} at beginning of node #{} but found {:?}",
+                    stack,
+                    w.index(),
+                    stack_at_w
+                );
             } else {
                 *stack_at_w = Some(stack);
             }
@@ -285,8 +314,10 @@ fn transform(mut cfg: Cfg<Instruction, JumpCondition>,
     }
     use std::mem;
     Cfg {
-        graph: cfg.graph.map(|nx, _| mem::replace(&mut new_bbs[nx.index()], BasicBlock::default()),
-                             |_, e| *e),
+        graph: cfg.graph.map(
+            |nx, _| mem::replace(&mut new_bbs[nx.index()], BasicBlock::default()),
+            |_, e| *e,
+        ),
         entry_point: cfg.entry_point,
         exit_point: cfg.exit_point,
     }
@@ -299,26 +330,22 @@ fn store_method_params_in_locals(method: &mut Method<Cfg<Statement, RecExpr>>) {
         let to = Box::new(Assignable::Variable(local(local_index), 0));
         let from = rec_expr(Expr::This);
         assignments.push(Statement::Expr(rec_expr(Expr::Assign {
-                                                      from: from,
-                                                      op: None,
-                                                      to: to,
-                                                  })));
+            from: from,
+            op: None,
+            to: to,
+        })));
         local_index += 1;
     }
-    for (param_index, parameter) in
-        method.signature
-            .parameters
-            .iter_mut()
-            .enumerate() {
+    for (param_index, parameter) in method.signature.parameters.iter_mut().enumerate() {
         parameter.0 = param(param_index);
         let to = Box::new(Assignable::Variable(local(local_index), 0));
         local_index += 1;
         let from = mk_variable(param(param_index));
         assignments.push(Statement::Expr(rec_expr(Expr::Assign {
-                                                      from: from,
-                                                      op: None,
-                                                      to: to,
-                                                  })));
+            from: from,
+            op: None,
+            to: to,
+        })));
     }
     if let Some(ref mut cfg) = method.code {
         let entry_block = &mut cfg.graph.node_weight_mut(cfg.entry_point).unwrap();

@@ -21,8 +21,9 @@ pub struct Cfg<Stmt, Cond> {
 }
 
 impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
-    where Stmt: PrettyWith<Ctx>,
-          Cond: PrettyWith<Ctx>
+where
+    Stmt: PrettyWith<Ctx>,
+    Cond: PrettyWith<Ctx>,
 {
     fn pretty_with(&self, context: &Ctx) -> Doc {
         let header = doc(format!("start at #{}", self.entry_point.index())) + newline() + newline();
@@ -30,8 +31,9 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
             let node_id = node_ref.id();
             let header = doc(format!("#{}:", node_id.index()));
             let content = node_ref.weight().pretty_with(context);
-            let mut edge_refs =
-                self.graph.edges_directed(node_id, Direction::Outgoing).collect::<Vec<_>>();
+            let mut edge_refs = self.graph
+                .edges_directed(node_id, Direction::Outgoing)
+                .collect::<Vec<_>>();
             edge_refs.sort_by_key(|&e| e.weight());
             let gotos = if edge_refs.is_empty() {
                 empty()
@@ -40,10 +42,12 @@ impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
                 newline() + format!("goto #{}", edge_ref.target().index())
             } else {
                 let gotos = edge_refs.iter().map(|edge_ref| {
-                                                     doc(format!("{} => goto #{}",
-                                                                 edge_ref.weight(),
-                                                                 edge_ref.target().index()))
-                                                 });
+                    doc(format!(
+                        "{} => goto #{}",
+                        edge_ref.weight(),
+                        edge_ref.target().index()
+                    ))
+                });
                 let gotos = intersperse(gotos, newline());
                 nest(4, newline() + gotos)
             };
@@ -121,8 +125,10 @@ impl Dominators {
         } else {
             return newline() + doc(root.index());
         };
-        let subtree = intersperse(children.iter().map(|&l| self.pretty_from(l, reverse_map)),
-                                  empty());
+        let subtree = intersperse(
+            children.iter().map(|&l| self.pretty_from(l, reverse_map)),
+            empty(),
+        );
         if self.reversed {
             nest(2, subtree) + newline() + doc(root.index())
         } else {
@@ -135,7 +141,10 @@ impl<T> PrettyWith<T> for Dominators {
     fn pretty_with(&self, _: &T) -> Doc {
         let mut reverse_map = Map::new();
         for (&node, &parent) in &self.map {
-            reverse_map.entry(parent).or_insert_with(Vec::new).push(node);
+            reverse_map
+                .entry(parent)
+                .or_insert_with(Vec::new)
+                .push(node);
         }
         doc("(Post)Dominators:") + self.pretty_from(self.root(), &reverse_map)
     }
@@ -179,8 +188,9 @@ impl<Stmt, Cond> Default for BasicBlock<Stmt, Cond> {
 }
 
 impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for BasicBlock<Stmt, Cond>
-    where Stmt: PrettyWith<Ctx>,
-          Cond: PrettyWith<Ctx>
+where
+    Stmt: PrettyWith<Ctx>,
+    Cond: PrettyWith<Ctx>,
 {
     fn pretty_with(&self, context: &Ctx) -> Doc {
         let stmts = self.stmts.iter().map(|stmt| stmt.pretty_with(context));

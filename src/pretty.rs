@@ -53,7 +53,8 @@ pub fn nest(offset: usize, doc: Doc) -> Doc {
 }
 
 pub fn concat<I>(docs: I) -> Doc
-    where I: IntoIterator<Item = Doc>
+where
+    I: IntoIterator<Item = Doc>,
 {
     docs.into_iter().fold(empty(), |a, b| a.append(b))
 }
@@ -63,8 +64,9 @@ pub fn doc<T: Into<Doc>>(data: T) -> Doc {
 }
 
 pub fn intersperse<I, S>(docs: I, sep: S) -> Doc
-    where I: IntoIterator<Item = Doc>,
-          S: Into<Doc>
+where
+    I: IntoIterator<Item = Doc>,
+    S: Into<Doc>,
 {
     let sep = sep.into();
     let mut iter = docs.into_iter();
@@ -84,17 +86,19 @@ pub fn tupled<I: IntoIterator<Item = Doc>>(docs: I) -> Doc {
 }
 
 pub fn enclose_sep<L, R, S, I>(left: L, right: R, sep: S, docs: I) -> Doc
-    where L: Into<Doc>,
-          R: Into<Doc>,
-          S: Into<Doc>,
-          I: IntoIterator<Item = Doc>
+where
+    L: Into<Doc>,
+    R: Into<Doc>,
+    S: Into<Doc>,
+    I: IntoIterator<Item = Doc>,
 {
     let result = left.into() + breakline() + intersperse(docs, sep) + right.into();
     result.nest(4).group()
 }
 
 impl<S> From<S> for Doc
-    where S: ToString
+where
+    S: ToString,
 {
     fn from(s: S) -> Doc {
         let text = s.to_string();
@@ -105,16 +109,20 @@ impl<S> From<S> for Doc
 
 impl Doc {
     pub fn render<I, W>(&self, width_limit: I, out: &mut W) -> io::Result<()>
-        where I: Into<Option<usize>>,
-              W: ?Sized + io::Write
+    where
+        I: Into<Option<usize>>,
+        W: ?Sized + io::Write,
     {
-        best(self,
-             width_limit.into().unwrap_or(usize::max_value() / 2),
-             out)
+        best(
+            self,
+            width_limit.into().unwrap_or(usize::max_value() / 2),
+            out,
+        )
     }
 
     pub fn render_string<I>(&self, width_limit: I) -> String
-        where I: Into<Option<usize>>
+    where
+        I: Into<Option<usize>>,
     {
         let mut writer = vec![];
         self.render(width_limit, &mut writer).unwrap();
@@ -210,18 +218,16 @@ fn fitting<'a>(next: Cmd<'a>, bcmds: &[Cmd<'a>], fcmds: &mut Vec<Cmd<'a>>, mut r
                     Doc::Nest(off, ref doc) => {
                         fcmds.push((ind + off, mode, doc));
                     }
-                    Doc::Space(space) => {
-                        match mode {
-                            Mode::Flat => {
-                                if space {
-                                    rem -= 1;
-                                }
-                            }
-                            Mode::Break => {
-                                return true;
+                    Doc::Space(space) => match mode {
+                        Mode::Flat => {
+                            if space {
+                                rem -= 1;
                             }
                         }
-                    }
+                        Mode::Break => {
+                            return true;
+                        }
+                    },
                     Doc::Newline => return true,
                     Doc::Text(ref str) => {
                         rem -= str.len() as isize;
@@ -250,22 +256,20 @@ pub fn best<W: ?Sized + io::Write>(doc: &Doc, width: usize, out: &mut W) -> io::
                 }
                 bcmds.push((ind, mode, doc));
             }
-            Doc::Group(ref doc) => {
-                match mode {
-                    Mode::Flat => {
-                        bcmds.push((ind, Mode::Flat, doc));
-                    }
-                    Mode::Break => {
-                        let next = (ind, Mode::Flat, &**doc);
-                        let rem = width as isize - pos as isize;
-                        if fitting(next, &bcmds, &mut fcmds, rem) {
-                            bcmds.push(next);
-                        } else {
-                            bcmds.push((ind, Mode::Break, doc));
-                        }
+            Doc::Group(ref doc) => match mode {
+                Mode::Flat => {
+                    bcmds.push((ind, Mode::Flat, doc));
+                }
+                Mode::Break => {
+                    let next = (ind, Mode::Flat, &**doc);
+                    let rem = width as isize - pos as isize;
+                    if fitting(next, &bcmds, &mut fcmds, rem) {
+                        bcmds.push(next);
+                    } else {
+                        bcmds.push((ind, Mode::Break, doc));
                     }
                 }
-            }
+            },
             Doc::Nest(off, ref doc) => {
                 bcmds.push((ind + off, mode, doc));
             }

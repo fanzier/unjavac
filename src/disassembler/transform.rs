@@ -4,9 +4,9 @@ pub use disassembler::disassemble::*;
 
 pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
     let mut unit = CompilationUnit {
-        typ: if class_file.access_flags.contains(ACC_INTERFACE) {
+        typ: if class_file.access_flags.contains(AccessFlags::INTERFACE) {
             UnitType::Interface
-        } else if class_file.access_flags.contains(ACC_ENUM) {
+        } else if class_file.access_flags.contains(AccessFlags::ENUM) {
             UnitType::Enum
         } else {
             UnitType::Class
@@ -25,22 +25,22 @@ pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
 
 fn class_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     let mut modifiers = vec![];
-    if flags.contains(ACC_PUBLIC) {
+    if flags.contains(AccessFlags::PUBLIC) {
         modifiers.push(Modifier::Public);
     }
-    if flags.contains(ACC_PROTECTED) {
+    if flags.contains(AccessFlags::PROTECTED) {
         modifiers.push(Modifier::Protected);
     }
-    if flags.contains(ACC_PRIVATE) {
+    if flags.contains(AccessFlags::PRIVATE) {
         modifiers.push(Modifier::Private);
     }
-    if flags.contains(ACC_STATIC) {
+    if flags.contains(AccessFlags::STATIC) {
         modifiers.push(Modifier::Static);
     }
-    if flags.contains(ACC_ABSTRACT) {
+    if flags.contains(AccessFlags::ABSTRACT) {
         modifiers.push(Modifier::Abstract);
     }
-    if flags.contains(ACC_FINAL) {
+    if flags.contains(AccessFlags::FINAL) {
         modifiers.push(Modifier::Final);
     }
     modifiers
@@ -145,32 +145,32 @@ fn transform_method<C>(unit: &CompilationUnit<C>, method: &MethodInfo) -> Declar
 
 fn method_flags_to_modifiers(flags: &AccessFlags) -> Vec<Modifier> {
     let mut modifiers = vec![];
-    if flags.contains(ACC_PUBLIC) {
+    if flags.contains(AccessFlags::PUBLIC) {
         modifiers.push(Modifier::Public);
     }
-    if flags.contains(ACC_PROTECTED) {
+    if flags.contains(AccessFlags::PROTECTED) {
         modifiers.push(Modifier::Protected);
     }
-    if flags.contains(ACC_PRIVATE) {
+    if flags.contains(AccessFlags::PRIVATE) {
         modifiers.push(Modifier::Private);
     }
-    if flags.contains(ACC_STATIC) {
+    if flags.contains(AccessFlags::STATIC) {
         modifiers.push(Modifier::Static);
     }
-    if flags.contains(ACC_ABSTRACT) {
+    if flags.contains(AccessFlags::ABSTRACT) {
         modifiers.push(Modifier::Abstract);
     }
-    if flags.contains(ACC_FINAL) {
+    if flags.contains(AccessFlags::FINAL) {
         modifiers.push(Modifier::Final);
     }
     // Method specific flags:
-    if flags.contains(ACC_SYNCHRONIZED) {
+    if flags.contains(AccessFlags::SYNCHRONIZED) {
         modifiers.push(Modifier::Synchronized);
     }
-    if flags.contains(ACC_NATIVE) {
+    if flags.contains(AccessFlags::NATIVE) {
         modifiers.push(Modifier::Native);
     }
-    if flags.contains(ACC_STRICT) {
+    if flags.contains(AccessFlags::STRICT) {
         modifiers.push(Modifier::Strictfp);
     }
     modifiers

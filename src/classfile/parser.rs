@@ -1,8 +1,8 @@
+use byteorder::{BigEndian, ReadBytesExt};
+pub use classfile::constant_pool::*;
+pub use classfile::constants::*;
 use std::io::prelude::*;
 use std::io::Result;
-use byteorder::{BigEndian, ReadBytesExt};
-pub use classfile::constants::*;
-pub use classfile::constant_pool::*;
 
 pub fn parse_class_file<R: Read>(input: &mut R) -> Result<ClassFile> {
     let magic = input.read_u32::<BigEndian>()?;

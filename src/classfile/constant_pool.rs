@@ -1,7 +1,7 @@
-use std::io::prelude::*;
-use std::io::Result;
 use byteorder::{BigEndian, ReadBytesExt};
 pub use classfile::parser::*;
+use std::io::prelude::*;
+use std::io::Result;
 
 #[derive(Debug)]
 pub struct ConstantPool {

@@ -2,8 +2,8 @@ extern crate clap;
 extern crate unjavac;
 
 use unjavac::classfile::parser::*;
-use unjavac::disassembler::transform::*;
 use unjavac::decompiler::decompile::*;
+use unjavac::disassembler::transform::*;
 
 fn main() {
     use std::fs::File;

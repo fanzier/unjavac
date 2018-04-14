@@ -1,6 +1,6 @@
 pub use disassembler::types::*;
-use std::fmt::*;
 use pretty::*;
+use std::fmt::*;
 
 impl<C> Display for CompilationUnit<C>
 where
@@ -82,15 +82,19 @@ impl Display for Type {
 
 impl PrettyWith<str> for Signature {
     fn pretty_with(&self, name: &str) -> Doc {
-        let params = self.parameters.iter().map(|&(ref name, ref typ)| {
-            if name.is_empty() {
-                doc(typ)
-            } else {
-                doc(typ) + ' ' + name
-            }
-        });
-        group(doc(&self.return_type) + spaceline() + name + tupled(params))
+        group(doc(&self.return_type) + spaceline() + name + pretty_parameters(&self.parameters))
     }
+}
+
+fn pretty_parameters(parameters: &[(String, Type)]) -> Doc {
+    let parameters = parameters.iter().map(|&(ref name, ref typ)| {
+        if name.is_empty() {
+            doc(typ)
+        } else {
+            doc(typ) + ' ' + name
+        }
+    });
+    tupled(parameters)
 }
 
 impl Display for Signature {
@@ -107,6 +111,7 @@ where
         match *self {
             Declaration::Field(_) => unimplemented!(),
             Declaration::Method(ref m) => m.pretty_with(unit),
+            Declaration::Constructor(ref c) => c.pretty_with(unit),
         }
     }
 }
@@ -125,6 +130,21 @@ where
         } else {
             result += ";"
         }
+        result
+    }
+}
+
+impl<C, T> PrettyWith<CompilationUnit<T>> for Constructor<C>
+where
+    C: PrettyWith<CompilationUnit<T>>,
+{
+    fn pretty_with(&self, unit: &CompilationUnit<T>) -> Doc {
+        let mut result = self.modifiers.pretty() + ' ';
+        result += &unit.name;
+        result += pretty_parameters(&self.parameters);
+        result += " {";
+        result += nest(4, newline() + self.code.pretty_with(unit));
+        result += newline() + "}";
         result
     }
 }

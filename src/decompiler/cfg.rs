@@ -1,8 +1,8 @@
-pub use petgraph::*;
+use disassembler::instructions::*;
+use disassembler::types::*;
 pub use petgraph::graph::*;
 pub use petgraph::visit::*;
-use disassembler::types::*;
-use disassembler::instructions::*;
+pub use petgraph::*;
 use pretty::*;
 
 use std::collections::BTreeMap;
@@ -13,11 +13,22 @@ pub type CfgGraph<Stmt, Cond> = Graph<BasicBlock<Stmt, Cond>, bool, Directed, La
 pub type Edge = bool;
 type Map<K, T> = BTreeMap<K, T>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cfg<Stmt, Cond> {
     pub graph: CfgGraph<Stmt, Cond>,
     pub entry_point: Label,
     pub exit_point: Label,
+}
+
+impl<Stmt, Cond> Cfg<Stmt, Cond> {
+    pub fn map<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut Vec<Stmt>),
+    {
+        self.graph
+            .node_weights_mut()
+            .for_each(|node| f(&mut node.stmts));
+    }
 }
 
 impl<Ctx, Stmt, Cond> PrettyWith<Ctx> for Cfg<Stmt, Cond>
@@ -204,8 +215,8 @@ where
 }
 
 pub fn build_cfg(code: Code) -> Cfg<Instruction, JumpCondition> {
-    use std::collections::HashSet;
     use std::collections::HashMap;
+    use std::collections::HashSet;
     let instrs = code.instructions;
 
     let mut index_to_pc = HashMap::new();

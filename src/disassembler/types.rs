@@ -80,10 +80,11 @@ pub enum Modifier {
 pub enum Declaration<C> {
     Field(Field),
     Method(Method<C>),
+    Constructor(Constructor<C>),
 }
 
 impl<C> Declaration<C> {
-    pub fn map<F, D>(self, f: F) -> Declaration<D>
+    pub fn map<F, D>(self, mut f: F) -> Declaration<D>
     where
         F: FnMut(C) -> D,
     {
@@ -95,10 +96,19 @@ impl<C> Declaration<C> {
                 signature,
                 code,
             }) => Declaration::Method(Method {
-                modifiers: modifiers,
-                name: name,
-                signature: signature,
+                modifiers,
+                name,
+                signature,
                 code: code.map(f),
+            }),
+            Declaration::Constructor(Constructor {
+                modifiers,
+                parameters,
+                code,
+            }) => Declaration::Constructor(Constructor {
+                modifiers,
+                parameters,
+                code: f(code),
             }),
         }
     }
@@ -117,6 +127,13 @@ pub struct Method<C> {
     pub name: String,
     pub signature: Signature,
     pub code: Option<C>,
+}
+
+#[derive(Debug)]
+pub struct Constructor<C> {
+    pub modifiers: Vec<Modifier>,
+    pub parameters: Vec<(String, Type)>,
+    pub code: C,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq)]

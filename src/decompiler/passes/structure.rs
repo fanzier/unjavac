@@ -33,9 +33,9 @@
 //! The actual implementation is less recursive in order not to run the risk of blowing the stack.
 //! (If only Rust had guaranteed tail call optimization...)
 
-use disassembler::types::*;
 use decompiler::cfg::*;
 use decompiler::types::*;
+use disassembler::types::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 type Set<T> = BTreeSet<T>;
@@ -44,7 +44,7 @@ type Map<K, T> = BTreeMap<K, T>;
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Jump(Label, Label);
 
-pub fn structure(unit: CompilationUnit<Cfg<Statement, RecExpr>>) -> CompilationUnit<Block> {
+pub fn structure(unit: CompilationUnit<Cfg<Statement, Expr>>) -> CompilationUnit<Block> {
     unit.map(structure_cfg)
 }
 
@@ -95,7 +95,7 @@ enum Structured {
 }
 
 fn structured_to_statement(
-    cfg: &Cfg<Statement, RecExpr>,
+    cfg: &Cfg<Statement, Expr>,
     structured: Vec<Structured>,
 ) -> Vec<Statement> {
     let mut result = vec![];
@@ -111,7 +111,7 @@ fn structured_to_statement(
             }),
             Structured::Loop { id, body } => result.push(Statement::While {
                 label: Some(loop_label(id)),
-                cond: rec_expr(Expr::Literal(Literal::Boolean(true))),
+                cond: Expr::Literal(Literal::Boolean(true)),
                 body: Block(vec![], structured_to_statement(cfg, body)),
                 do_while: false,
             }),
@@ -126,7 +126,7 @@ fn structured_to_statement(
     result
 }
 
-fn structure_cfg(cfg: Cfg<Statement, RecExpr>, _: &Metadata) -> Block {
+fn structure_cfg(cfg: Cfg<Statement, Expr>, _: &Metadata) -> Block {
     let structured = cfg_to_structured(&cfg);
     Block(vec![], structured_to_statement(&cfg, structured))
 }

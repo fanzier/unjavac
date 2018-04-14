@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::cmp;
 use std::io;
-use std::borrow::Cow;
 use std::ops::{Add, AddAssign};
 
 pub trait PrettyWith<Ctx: ?Sized> {

@@ -1,5 +1,5 @@
-use pretty::*;
 use decompiler::types::*;
+use pretty::*;
 use std::cmp::Ordering;
 
 trait HasPrecedence {
@@ -70,7 +70,7 @@ impl HasPrecedence for Assignable {
     }
 }
 
-impl<E> HasPrecedence for Expr<E> {
+impl HasPrecedence for Expr {
     fn precedence(&self) -> Precedence {
         match *self {
             Expr::Assignable(ref v) => v.precedence(),
@@ -95,24 +95,16 @@ impl<E> HasPrecedence for Expr<E> {
     }
 }
 
-impl<T> PrettyWith<T> for RecExpr {
-    fn pretty_with(&self, _: &T) -> Doc {
-        self.inner().pretty()
-    }
-}
-
-impl<T> PrettyWith<T> for Expr<RecExpr> {
+impl<T> PrettyWith<T> for Expr {
     fn pretty_with(&self, _: &T) -> Doc {
         match *self {
             Expr::Literal(ref literal) => format!("{}", literal).into(),
             Expr::Assignable(ref v) => v.pretty(),
-            Expr::UnaryOp(op, ref e) => {
-                Doc::from(op) + parens_if(e.inner(), self.precedence(), true)
-            }
+            Expr::UnaryOp(op, ref e) => Doc::from(op) + parens_if(&**e, self.precedence(), true),
             Expr::BinaryOp(op, ref e1, ref e2) => {
-                (parens_if(e1.inner(), self.precedence(), true) + spaceline()
+                (parens_if(&**e1, self.precedence(), true) + spaceline()
                     + group(format!("{} ", op).into())
-                    + parens_if(e2.inner(), self.precedence(), true))
+                    + parens_if(&**e2, self.precedence(), true))
                     .group()
             }
             Expr::IfThenElse { .. } => unimplemented!(),
@@ -205,6 +197,10 @@ impl<T> PrettyWith<T> for Statement {
             }
             Statement::Return(ref val) => {
                 doc("return") + val.as_ref().map_or_else(empty, |v| doc(" ") + v.pretty()) + ";"
+            }
+            Statement::ThisCall(ref args) => doc("this") + tupled(args.iter().map(Pretty::pretty)),
+            Statement::SuperCall(ref args) => {
+                doc("super") + tupled(args.iter().map(Pretty::pretty))
             }
             Statement::Throw(..) => unimplemented!(),
             Statement::Synchronized(..) => unimplemented!(),

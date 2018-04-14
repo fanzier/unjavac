@@ -1,6 +1,6 @@
 pub use classfile::parser::*;
-pub use disassembler::types::*;
 pub use disassembler::disassemble::*;
+pub use disassembler::types::*;
 
 pub fn transform(class_file: &ClassFile) -> CompilationUnit<Code> {
     let mut unit = CompilationUnit {

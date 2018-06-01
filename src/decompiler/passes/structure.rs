@@ -13,7 +13,7 @@
 //! 6. We now have an acyclic control flow graph.
 //! 7. run `structure_from(#method_entry_point, None)`, see below
 //!
-//! ```
+//! ```ignore
 //! structure_from(#start, #stop):
 //!   if #start == #stop:
 //!     stop

@@ -63,6 +63,7 @@ pub fn walk_block<V: Visitor + ?Sized>(
 
 pub fn walk_statement<V: Visitor + ?Sized>(visitor: &mut V, stmt: &mut Statement) {
     match *stmt {
+        Statement::Nop => (),
         Statement::Expr(ref mut expr) => visitor.visit_expr(expr),
         Statement::Block(ref mut block) => visitor.visit_block(block),
         Statement::If {
@@ -253,6 +254,7 @@ pub fn stmt_expr(e: Expr) -> Statement {
 
 #[derive(Clone, Debug, Hash)]
 pub enum Statement {
+    Nop,
     Expr(Expr),
     Block(Block),
     If {

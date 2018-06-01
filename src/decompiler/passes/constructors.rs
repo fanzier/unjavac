@@ -42,7 +42,7 @@ pub struct ConstructorVisitor<'a> {
 impl<'a> Visitor for ConstructorVisitor<'a> {
     fn visit_statement(&mut self, stmt: &mut Statement) {
         let replacement = if let Statement::Expr(Expr::Invoke(
-            Some(_),
+            Some(ref expr),
             MethodRef {
                 name: ref method_name,
                 ..
@@ -51,6 +51,13 @@ impl<'a> Visitor for ConstructorVisitor<'a> {
             ref args,
         )) = *stmt
         {
+            assert!(
+                match **expr {
+                    Expr::This => true,
+                    _ => false,
+                },
+                "constructor call not on `this`!"
+            );
             if method_name == "<init>" {
                 if self.class_name == class_name {
                     Some(Statement::ThisCall(args.clone()))

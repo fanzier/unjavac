@@ -101,12 +101,12 @@ impl<T> PrettyWith<T> for Expr {
             Expr::Literal(ref literal) => format!("{}", literal).into(),
             Expr::Assignable(ref v) => v.pretty(),
             Expr::UnaryOp(op, ref e) => Doc::from(op) + parens_if(&**e, self.precedence(), true),
-            Expr::BinaryOp(op, ref e1, ref e2) => {
-                (parens_if(&**e1, self.precedence(), true) + spaceline()
-                    + group(format!("{} ", op).into())
-                    + parens_if(&**e2, self.precedence(), true))
-                    .group()
-            }
+            Expr::BinaryOp(op, ref e1, ref e2) => (parens_if(&**e1, self.precedence(), true)
+                + spaceline()
+                + group(format!("{} ", op).into())
+                + parens_if(&**e2, self.precedence(), true))
+                .group(
+            ),
             Expr::IfThenElse { .. } => unimplemented!(),
             Expr::Invoke(ref this, ref method, ref class, ref args) => {
                 let result = if let Some(ref this) = *this {
@@ -158,6 +158,7 @@ impl<T> PrettyWith<T> for Assignable {
 impl<T> PrettyWith<T> for Statement {
     fn pretty_with(&self, _: &T) -> Doc {
         match *self {
+            Statement::Nop => doc("nop;"),
             Statement::Expr(ref e) => nest(4, e.pretty() + ";"),
             Statement::Block(ref block) => block.pretty(),
             Statement::If {
@@ -166,7 +167,8 @@ impl<T> PrettyWith<T> for Statement {
                 ref els,
             } => {
                 doc("if (") + cond.pretty() + ") " + then.pretty()
-                    + els.as_ref()
+                    + els
+                        .as_ref()
                         .map_or_else(empty, |e| doc(" else ") + e.pretty())
             }
             Statement::While {
@@ -198,9 +200,11 @@ impl<T> PrettyWith<T> for Statement {
             Statement::Return(ref val) => {
                 doc("return") + val.as_ref().map_or_else(empty, |v| doc(" ") + v.pretty()) + ";"
             }
-            Statement::ThisCall(ref args) => doc("this") + tupled(args.iter().map(Pretty::pretty)),
+            Statement::ThisCall(ref args) => {
+                doc("this") + tupled(args.iter().map(Pretty::pretty)) + ";"
+            }
             Statement::SuperCall(ref args) => {
-                doc("super") + tupled(args.iter().map(Pretty::pretty))
+                doc("super") + tupled(args.iter().map(Pretty::pretty)) + ";"
             }
             Statement::Throw(..) => unimplemented!(),
             Statement::Synchronized(..) => unimplemented!(),

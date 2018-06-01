@@ -14,8 +14,7 @@ PASS 1: CONTROL FLOW GRAPH:
             unit
         );
     }
-    let mut unit = stack_to_var::stack_to_vars(unit);
-    constructors::handle_constructors(&mut unit);
+    let unit = stack_to_var::stack_to_vars(unit);
     if verbose {
         println!(
             r#"
@@ -25,11 +24,22 @@ PASS 2: STACK TO VARIABLES:
             unit
         );
     }
+    let mut unit = var_prop::var_prop(unit);
+    constructors::handle_constructors(&mut unit);
+    if verbose {
+        println!(
+            r#"
+PASS 3: VARIABLE PROPAGATION:
+===========================
+{}"#,
+            unit
+        );
+    }
     let unit = structure::structure(unit);
     if verbose {
         println!(
             r#"
-PASS 3: STRUCTURE THE CONRTOL FLOW GRAPH:
+PASS 4: STRUCTURE THE CONRTOL FLOW GRAPH:
 =========================================
 {}"#,
             unit

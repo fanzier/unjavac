@@ -246,10 +246,6 @@ fn local(i: usize) -> String {
     format!("local_{}", i)
 }
 
-fn param(i: usize) -> String {
-    format!("param_{}", i)
-}
-
 pub fn stack_to_vars(
     unit: CompilationUnit<Cfg<Instruction, JumpCondition>>,
 ) -> CompilationUnit<Cfg<Statement, Expr>> {
@@ -257,7 +253,7 @@ pub fn stack_to_vars(
     for declaration in &mut unit.declarations {
         match *declaration {
             Declaration::Method(ref mut method) => {
-                store_method_params_in_locals(method);
+                handle_parameters(method);
             }
             Declaration::Constructor(..) => unreachable!("no constructors at this point"),
             Declaration::Field(..) => {}
@@ -315,7 +311,7 @@ fn transform(
     }
 }
 
-fn store_method_params_in_locals(method: &mut Method<Cfg<Statement, Expr>>) {
+fn handle_parameters(method: &mut Method<Cfg<Statement, Expr>>) {
     let mut local_index = 0;
     let mut assignments = vec![];
     if !method.modifiers.contains(&Modifier::Static) {
@@ -328,16 +324,9 @@ fn store_method_params_in_locals(method: &mut Method<Cfg<Statement, Expr>>) {
         }));
         local_index += 1;
     }
-    for (param_index, parameter) in method.signature.parameters.iter_mut().enumerate() {
-        parameter.0 = param(param_index);
-        let to = Box::new(Assignable::Variable(local(local_index), 0));
+    for parameter in method.signature.parameters.iter_mut() {
+        parameter.0 = local(local_index);
         local_index += 1;
-        let from = Box::new(mk_variable(param(param_index)));
-        assignments.push(Statement::Expr(Expr::Assign {
-            from: from,
-            op: None,
-            to: to,
-        }));
     }
     if let Some(ref mut cfg) = method.code {
         let entry_block = &mut cfg.graph.node_weight_mut(cfg.entry_point).unwrap();
